@@ -21,6 +21,7 @@ AI app --stdio--------------------------> MCP server --> tool functions --> path
 | `internal/index`  | Full-text search index and file watcher              |
 | `internal/upstream` | Connections to other MCP servers, allow/lock rules |
 | `internal/audit`  | JSON Lines record of tool calls, rotated by size     |
+| `internal/admin`  | The web portal                                       |
 
 A tool function does little itself. It checks limits, calls the vault package and
 encodes the result as JSON. All safety rules for paths live in the vault package,
@@ -39,6 +40,14 @@ connections to other MCP servers:
 tool router --> allowed? --> upstream connection --> other MCP server
 ```
 
+The browser reaches the portal on the same address:
+
+```
+browser --> Host check --> /admin --> session and CSRF checks --> page
+                                         |
+                       config store <----+----> gateway status
+```
+
 ## Design documents
 
 - [Configuration](design/config.md)
@@ -49,6 +58,7 @@ tool router --> allowed? --> upstream connection --> other MCP server
 - [Safe writes](design/writes.md)
 - [The upstream proxy](design/upstream.md)
 - [The audit log](design/audit.md)
+- [The admin portal](design/admin.md)
 
 ## Performance
 

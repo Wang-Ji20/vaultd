@@ -401,7 +401,7 @@ func TestGitStatus(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 	write(t, v.root, "new.md", "x")
-	if got := v.GitStatus(); got != "1 uncommitted changes" {
+	if got := v.GitStatus(); got != "1 uncommitted change" {
 		t.Errorf("got %q", got)
 	}
 }

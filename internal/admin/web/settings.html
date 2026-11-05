@@ -1,0 +1,23 @@
+{{define "content"}}
+<form method="post" action="/admin/settings">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <h2>Audit log</h2>
+  <div class="group">
+    <div class="row"><label for="max-files">Files to keep</label><input id="max-files" name="max_files" type="number" min="1" value="{{.Data.MaxFiles}}"></div>
+    <div class="row"><label for="max-size">Size of each file (MB)</label><input id="max-size" name="max_size_mb" type="number" min="1" value="{{.Data.MaxSizeMB}}"></div>
+    <div class="row">{{template "toggle" dict "label" "Log tool arguments" "name" "log_arguments" "id" "log-arguments" "on" .Data.LogArguments}}</div>
+  </div>
+  <h2>Portal</h2>
+  <div class="group">
+    <div class="row"><label for="session-ttl">Session length</label><input id="session-ttl" name="session_ttl" value="{{.Data.SessionTTL}}" required></div>
+    <div class="row">
+      <fieldset class="segmented"><legend>Theme</legend>
+        <label><input type="radio" name="theme" value="system"{{if eq .Data.Theme "system"}} checked{{end}}><span>System</span></label>
+        <label><input type="radio" name="theme" value="light"{{if eq .Data.Theme "light"}} checked{{end}}><span>Light</span></label>
+        <label><input type="radio" name="theme" value="dark"{{if eq .Data.Theme "dark"}} checked{{end}}><span>Dark</span></label>
+      </fieldset>
+    </div>
+  </div>
+  <p class="end"><button class="primary">Save</button></p>
+</form>
+{{end}}

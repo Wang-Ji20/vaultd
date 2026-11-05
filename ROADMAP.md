@@ -9,7 +9,7 @@ The long-term plan. Current work is tracked in [PLAN.md](PLAN.md).
 - [x] Shared HTTP endpoint with per-app tokens
 - [x] Safe writes
 - [x] Upstream proxy and audit log
-- [ ] Admin portal
+- [x] Admin portal
 - [ ] OS service and release builds
 
 ## Not planned for v1

@@ -15,6 +15,7 @@ import (
 	"slices"
 	"syscall"
 
+	"github.com/hortensia/vaultd/internal/admin"
 	"github.com/hortensia/vaultd/internal/audit"
 	"github.com/hortensia/vaultd/internal/config"
 	"github.com/hortensia/vaultd/internal/index"
@@ -104,6 +105,11 @@ func serve(ctx context.Context, store *config.Store, stdio bool, logger *slog.Lo
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	gateway := server.New(server.Options{Store: store, Vault: v, Index: ix, Audit: auditLog, Version: version, Logger: logger})
+	portal, err := admin.New(admin.Options{Store: store, Backend: gateway, Version: version, Base: ctx})
+	if err != nil {
+		return err
+	}
+	gateway.MountAdmin(portal)
 	if err := gateway.Start(ctx); err != nil {
 		return err
 	}
@@ -133,7 +139,7 @@ func reindexCommand(args []string, stdout, stderr io.Writer) error {
 	if err := ix.Rebuild(context.Background()); err != nil {
 		return err
 	}
-	fmt.Fprintf(stdout, "indexed %d notes\n", ix.State().Notes)
+	fmt.Fprintf(stdout, "notes indexed: %d\n", ix.State().Notes)
 	return nil
 }
 

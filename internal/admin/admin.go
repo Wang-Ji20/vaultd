@@ -89,6 +89,8 @@ func (p *Portal) routes() {
 		p.appsRoutes(),
 		p.vaultRoutes(),
 		p.upstreamsRoutes(),
+		p.auditRoutes(),
+		p.settingsRoutes(),
 	} {
 		for pattern, handler := range pages {
 			p.handle(pattern, p.requireSession(handler))

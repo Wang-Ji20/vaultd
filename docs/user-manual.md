@@ -116,6 +116,30 @@ one commit, such as `vaultd: vault.append AI/log.md (cursor)`. Only that file is
 committed: anything else you have staged stays staged. If a commit fails, for example
 because git has no `user.name`, the write still counts and vaultd logs a warning.
 
+## Admin portal
+
+Set a password, then open `http://127.0.0.1:8765/admin/`:
+
+```
+vaultd hash-password --write
+```
+
+| Page          | What you can do                                                    |
+|---------------|--------------------------------------------------------------------|
+| Overview      | See status and the last 20 calls; restore one of the last 10 configs |
+| Apps & tokens | Create, rotate and revoke tokens; copy config for each client      |
+| Vault         | Choose writable folders; switch git commits; rebuild the index     |
+| Upstreams     | See connections; reconnect; allow or hide each tool                |
+| Audit log     | Filter and search calls; click a row for its full JSON             |
+| Settings      | Audit retention and arguments; session length; theme               |
+
+Every change is validated and backed up first, and applies at once without a restart.
+
+Saving from the portal rewrites `config.toml`, so comments in it are lost. Backups keep the
+old versions in the data folder.
+
+Tested in Chrome and Firefox on Linux, in light and dark mode. Windows has not been tested.
+
 ## Upstream servers
 
 An upstream is any other MCP server. Add it to `config.toml`, and its allowed tools

@@ -117,7 +117,7 @@ func TestReindex(t *testing.T) {
 	if err := dispatch([]string{"reindex", "--config", writeTestConfig(t, vaultDir)}, &stdout, &stderr); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(stdout.String(), "indexed 1 notes") {
+	if !strings.Contains(stdout.String(), "notes indexed: 1") {
 		t.Fatalf("got %q", stdout.String())
 	}
 }

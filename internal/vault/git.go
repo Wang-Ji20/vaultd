@@ -54,8 +54,11 @@ func (v *Vault) GitStatus() string {
 		return "git status failed"
 	}
 	changed := strings.Count(string(output), "\n")
-	if changed == 0 {
+	switch changed {
+	case 0:
 		return "clean"
+	case 1:
+		return "1 uncommitted change"
 	}
 	return fmt.Sprintf("%d uncommitted changes", changed)
 }

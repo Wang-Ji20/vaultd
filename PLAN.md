@@ -8,7 +8,7 @@ Long-term items live in [ROADMAP.md](ROADMAP.md).
 - [x] 3. Shared endpoint
 - [x] 4. Safe writes
 - [x] 5. Upstream proxy + audit log
-- [ ] 6. Admin portal
+- [x] 6. Admin portal
 - [ ] 7. Service + packaging
 
 ## Decisions on the spec
@@ -28,3 +28,8 @@ design document named.
   weight per column and `path` is the first column, so these would rank title 5, tags 1,
   body 1. vaultd uses `bm25(notes_fts, 0.0, 10.0, 5.0, 1.0)`, which matches the title,
   tags and body weights the spec states. See `docs/design/search-index.md`.
+- **Third-party files.** `AGENTS.md` says nothing third-party is vendored, and SPEC §3 and
+  §12 embed htmx and Inter. The maintainer chose to allow exactly these two files, in
+  `internal/admin/web/` with their licences. `AGENTS.md` itself has not been changed.
+- **Colours and AA.** Several of the spec's light-mode colours fail WCAG AA as text. They stay
+  for fills and marks, and text uses darker tokens. See `docs/design/admin.md`.

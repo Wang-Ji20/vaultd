@@ -1,0 +1,37 @@
+{{define "content"}}
+<form class="group pad filters" method="get" action="/admin/audit">
+  <div class="field"><label for="f-app">App</label>
+    <select id="f-app" name="app"><option value="">All</option>{{range .Data.Apps}}<option{{if eq . $.Data.App}} selected{{end}}>{{.}}</option>{{end}}</select></div>
+  <div class="field"><label for="f-tool">Tool</label><input id="f-tool" name="tool" value="{{.Data.Tool}}" placeholder="vault.read"></div>
+  <div class="field"><label for="f-text">Search</label><input id="f-text" name="text" type="search" value="{{.Data.Text}}"></div>
+  {{template "segments" dict "legend" "Result" "name" "result" "value" .Data.Result "a" "" "al" "All" "b" "ok" "bl" "OK" "c" "error" "cl" "Error"}}
+  <fieldset class="segmented"><legend>Time</legend>
+    {{template "segment" dict "name" "range" "value" "" "label" "All" "current" .Data.Range}}
+    {{template "segment" dict "name" "range" "value" "1h" "label" "1 h" "current" .Data.Range}}
+    {{template "segment" dict "name" "range" "value" "24h" "label" "24 h" "current" .Data.Range}}
+    {{template "segment" dict "name" "range" "value" "7d" "label" "7 d" "current" .Data.Range}}
+  </fieldset>
+  <button class="primary">Apply</button>
+</form>
+{{if .Data.Rows}}
+<ul class="group calls">
+  {{range .Data.Rows}}
+  <li><details>
+    <summary><span class="when">{{when .TS}}</span><span>{{.App}}</span><span class="mono">{{.Tool}}</span>{{if .OK}}<span class="good">OK</span>{{else}}<span class="bad">Error</span>{{end}}<span class="muted">{{.DurationMS}} ms</span></summary>
+    <pre><code>{{.Raw}}</code></pre>
+  </details></li>
+  {{end}}
+</ul>
+{{else}}<p class="group pad muted">No matching calls.</p>{{end}}
+<nav class="pager" aria-label="Pages">
+  {{with .Data.Previous}}<a href="{{.}}" rel="prev">Previous</a>{{end}}
+  <span class="muted">Page {{.Data.Page}}</span>
+  {{with .Data.Next}}<a href="{{.}}" rel="next">Next</a>{{end}}
+</nav>
+{{end}}
+{{define "segments"}}<fieldset class="segmented"><legend>{{.legend}}</legend>
+  {{template "segment" dict "name" .name "value" .a "label" .al "current" .value}}
+  {{template "segment" dict "name" .name "value" .b "label" .bl "current" .value}}
+  {{template "segment" dict "name" .name "value" .c "label" .cl "current" .value}}
+</fieldset>{{end}}
+{{define "segment"}}<label><input type="radio" name="{{.name}}" value="{{.value}}"{{if eq .value .current}} checked{{end}}><span>{{.label}}</span></label>{{end}}
