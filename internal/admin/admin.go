@@ -87,6 +87,8 @@ func (p *Portal) routes() {
 	for _, pages := range []map[string]http.HandlerFunc{
 		p.overviewRoutes(),
 		p.appsRoutes(),
+		p.vaultRoutes(),
+		p.upstreamsRoutes(),
 	} {
 		for pattern, handler := range pages {
 			p.handle(pattern, p.requireSession(handler))

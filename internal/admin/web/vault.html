@@ -1,0 +1,38 @@
+{{define "content"}}
+<h2>Location</h2>
+<dl class="group"><div class="row"><dt>Path</dt><dd class="mono">{{.Data.Path}}</dd></div></dl>
+<h2>Writable folders</h2>
+{{if .Data.Folders}}
+<ul class="group">
+  {{range .Data.Folders}}
+  <li><form class="row" method="post" action="/admin/vault/folder" hx-post="/admin/vault/folder" hx-trigger="change" hx-target="#main" hx-select="#main" hx-swap="outerHTML">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="name" value="{{.Name}}">
+    {{template "toggle" dict "label" .Name "name" "on" "id" .ID "on" .Writable}}
+    <noscript><button>Save</button></noscript>
+  </form></li>
+  {{end}}
+</ul>
+{{else}}<p class="group pad muted">The vault has no folders yet.</p>{{end}}
+<h2>Add folder</h2>
+<form class="group pad inline" method="post" action="/admin/vault/folder" hx-post="/admin/vault/folder" hx-target="#main" hx-select="#main" hx-swap="outerHTML">
+  <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="on" value="1">
+  <label for="folder-name">Folder</label>
+  <input id="folder-name" name="name" required placeholder="AI/Notes">
+  <button class="primary">Add</button>
+</form>
+<h2>Git</h2>
+<div class="group">
+  <form class="row" method="post" action="/admin/vault/git" hx-post="/admin/vault/git" hx-trigger="change" hx-target="#main" hx-select="#main" hx-swap="outerHTML">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    {{template "toggle" dict "label" "Commit after every write" "name" "on" "id" "git-autocommit" "on" .Data.GitAutocommit}}
+    <noscript><button>Save</button></noscript>
+  </form>
+  <div class="row"><span>Status</span><span class="muted">{{.Data.GitStatus}}</span></div>
+</div>
+<h2>Search index</h2>
+<form class="group pad inline" method="post" action="/admin/vault/reindex" hx-post="/admin/vault/reindex" hx-target="#main" hx-select="#main" hx-swap="outerHTML">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <span>Notes indexed: {{.Data.Index.Notes}}{{if .Data.Index.Indexing}} (indexing now){{end}}</span>
+  <button>Rebuild index</button>
+</form>
+{{end}}

@@ -1,0 +1,30 @@
+{{define "content"}}
+{{if not .Data.Upstreams}}<p class="group pad muted">No upstreams configured. Add them to config.toml.</p>{{end}}
+{{range $up := .Data.Upstreams}}
+<h2>{{$up.Name}}</h2>
+<section class="group" aria-label="{{$up.Name}}">
+  <div class="row">
+    <span>{{template "status" $up}} <small class="muted">{{$up.Transport}}</small></span>
+    <form method="post" action="/admin/upstreams/retry" hx-post="/admin/upstreams/retry" hx-target="#main" hx-select="#main" hx-swap="outerHTML">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="name" value="{{$up.Name}}">
+      <button>Reconnect</button>
+    </form>
+  </div>
+  {{with $up.Error}}<p class="row bad small">{{.}}</p>{{end}}
+  {{range $i, $tool := $up.Tools}}
+  {{if $tool.Locked}}
+  <div class="row locked">
+    <span><svg class="icon" role="img" aria-label="Locked"><use href="#i-lock"/></svg> {{$tool.Name}}{{with $tool.Description}}<br><small>{{.}}</small>{{end}}</span>
+    <span class="muted small">Locked</span>
+  </div>
+  {{else}}
+  <form class="row" method="post" action="/admin/upstreams/tool" hx-post="/admin/upstreams/tool" hx-trigger="change" hx-target="#main" hx-select="#main" hx-swap="outerHTML">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="name" value="{{$up.Name}}"><input type="hidden" name="tool" value="{{$tool.Name}}">
+    {{template "toggle" dict "label" $tool.Name "name" "on" "id" (printf "tool-%s-%d" $up.Name $i) "on" $tool.Allowed}}
+    <noscript><button>Save</button></noscript>
+  </form>
+  {{end}}
+  {{end}}
+</section>
+{{end}}
+{{end}}
