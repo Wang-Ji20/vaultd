@@ -3,7 +3,7 @@
 Live checklist for the current work: the seven milestones of [SPEC.md](SPEC.md) §16.
 Long-term items live in [ROADMAP.md](ROADMAP.md).
 
-- [ ] 1. Read-only vault over stdio
+- [x] 1. Read-only vault over stdio
 - [ ] 2. Real search
 - [ ] 3. Shared endpoint
 - [ ] 4. Safe writes
@@ -20,3 +20,7 @@ design document named.
   short series of commits on `dev`, not one commit.
 - **Test command.** `AGENTS.md` names `dune test`. This is a Go project, so the
   gate is `go vet ./...` and `go test ./...`.
+- **Upstream descriptions.** SPEC §6 passes these through unchanged, and §8 wants
+  all descriptions to warn that content is data. vaultd's own tools carry the warning
+  in their descriptions. For upstream tools it sits in the server instructions, which
+  apps see once per connection.

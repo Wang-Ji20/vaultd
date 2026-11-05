@@ -1,0 +1,46 @@
+# Copy to the default location (see docs/user-manual.md) and adapt.
+
+[server]
+listen = "127.0.0.1:8765"             # must be a loopback address
+
+[vault]
+path = "/home/me/Obsidian/MainVault"
+writable_folders = ["AI", "Inbox"]    # relative to the vault root
+ignore = [".obsidian", ".trash", ".git"]
+memory_file = "AI/memory.md"
+git_autocommit = true                 # commit each write if the vault is a git repo
+
+[admin]
+password_hash = ""                    # set with `vaultd hash-password`
+session_ttl = "12h"
+theme = "system"                      # system, light or dark
+
+[audit]
+max_size_mb = 10
+max_files = 5
+log_arguments = true                  # if false, log only tool names and sizes
+
+# One entry per app. Create these with `vaultd token new <app-name>`.
+# [[apps]]
+# name = "claude-desktop"
+# token_sha256 = "..."
+
+# Upstreams are any MCP server. These two are only examples.
+# env and headers values must be "env:NAME" references, never literal secrets.
+#
+# [[upstreams]]
+# name = "ibkr"                       # tools appear as "ibkr.<tool>"
+# transport = "stdio"
+# command = "path/to/ibkr-mcp-server"
+# args = []
+# env = { IBKR_TOKEN = "env:IBKR_TOKEN" }
+# allow = ["get_account_summary", "get_account_positions"]
+# locked = ["create_order_instruction", "delete_order_instruction"]
+#
+# [[upstreams]]
+# name = "gmail"
+# transport = "http"
+# url = "http://127.0.0.1:9000/mcp"
+# headers = { Authorization = "env:GMAIL_MCP_AUTH" }
+# allow = ["search_threads", "get_thread", "get_message", "create_draft"]
+# locked = ["send_message", "trash_message", "trash_thread", "forward", "reply"]
