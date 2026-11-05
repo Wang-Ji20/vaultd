@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"syscall"
 )
 
 // foldPaths says whether this platform's file names ignore case.
@@ -109,6 +110,9 @@ func evalExisting(p string) (string, error) {
 			if err != nil {
 				return "", err
 			}
+			if err := checkCanHoldMissing(real, missing); err != nil {
+				return "", err
+			}
 			for i := len(missing) - 1; i >= 0; i-- {
 				real = filepath.Join(real, missing[i])
 			}
@@ -124,6 +128,23 @@ func evalExisting(p string) (string, error) {
 		missing = append(missing, filepath.Base(current))
 		current = parent
 	}
+}
+
+// checkCanHoldMissing refuses a path that continues below a file. Linux reports
+// "a.md/b.md" as "not a directory", but Windows reports it as "not found", which
+// would otherwise look like a new file waiting to be created.
+func checkCanHoldMissing(real string, missing []string) error {
+	if len(missing) == 0 {
+		return nil
+	}
+	info, err := os.Stat(real)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return syscall.ENOTDIR
+	}
+	return nil
 }
 
 // resolve runs the whole jail: text checks, ignore rules, symlink resolution,
