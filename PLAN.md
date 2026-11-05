@@ -4,7 +4,7 @@ Live checklist for the current work: the seven milestones of [SPEC.md](SPEC.md) 
 Long-term items live in [ROADMAP.md](ROADMAP.md).
 
 - [x] 1. Read-only vault over stdio
-- [ ] 2. Real search
+- [x] 2. Real search
 - [ ] 3. Shared endpoint
 - [ ] 4. Safe writes
 - [ ] 5. Upstream proxy + audit log
@@ -24,3 +24,7 @@ design document named.
   all descriptions to warn that content is data. vaultd's own tools carry the warning
   in their descriptions. For upstream tools it sits in the server instructions, which
   apps see once per connection.
+- **Search ranking.** SPEC §9 gives `bm25(notes_fts, 10.0, 5.0, 1.0)`. bm25 takes one
+  weight per column and `path` is the first column, so these would rank title 5, tags 1,
+  body 1. vaultd uses `bm25(notes_fts, 0.0, 10.0, 5.0, 1.0)`, which matches the title,
+  tags and body weights the spec states. See `docs/design/search-index.md`.

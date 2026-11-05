@@ -4,7 +4,10 @@ vaultd is one program. Apps talk to it, and it talks to the vault.
 
 ```
 AI app --stdio--> MCP server --> tool functions --> path jail --> .md files
-                  (internal/server)                 (internal/vault)
+                  (internal/server)   |             (internal/vault)    |
+                                      v                                 | changes
+                                 search index <---- file watcher <------+
+                                 (internal/index)
 ```
 
 | Package           | Job                                                  |
@@ -13,6 +16,7 @@ AI app --stdio--> MCP server --> tool functions --> path jail --> .md files
 | `internal/config` | Load and validate `config.toml`                      |
 | `internal/server` | Expose tools over MCP                                |
 | `internal/vault`  | Path jail, note parsing, reading files               |
+| `internal/index`  | Full-text search index and file watcher              |
 
 A tool function does little itself. It checks limits, calls the vault package and
 encodes the result as JSON. All safety rules for paths live in the vault package,
@@ -23,3 +27,8 @@ so no tool can forget them.
 - [Configuration](design/config.md)
 - [Note parsing](design/parsing.md)
 - [The path jail](design/path-jail.md)
+- [The search index](design/search-index.md)
+
+## Performance
+
+- [Search index](perf/search-index.md)

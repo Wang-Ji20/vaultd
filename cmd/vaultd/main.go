@@ -11,9 +11,11 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/hortensia/vaultd/internal/config"
+	"github.com/hortensia/vaultd/internal/index"
 	"github.com/hortensia/vaultd/internal/server"
 	"github.com/hortensia/vaultd/internal/vault"
 )
@@ -24,6 +26,7 @@ var version = "dev"
 const usage = `usage: vaultd <command>
 
   run [--config path] --stdio   serve the tools over standard input and output
+  reindex [--config path]       rebuild the search index from scratch
   version                       print the version
 `
 
@@ -42,6 +45,8 @@ func dispatch(args []string, stdout, stderr io.Writer) error {
 	switch args[0] {
 	case "run":
 		return runCommand(args[1:], stderr)
+	case "reindex":
+		return reindexCommand(args[1:], stdout, stderr)
 	case "version":
 		fmt.Fprintln(stdout, version)
 		return nil
@@ -67,14 +72,61 @@ func runCommand(args []string, stderr io.Writer) error {
 	}
 	// Stdout belongs to the MCP protocol in stdio mode, so logs go to stderr.
 	logger := slog.New(slog.NewTextHandler(stderr, nil))
-	v, err := vault.New(vault.Options{Root: cfg.Vault.Path, Ignore: cfg.Vault.Ignore})
+	v, ix, err := openVault(cfg)
 	if err != nil {
 		return err
 	}
+	defer ix.Close()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	gateway := server.New(server.Options{Vault: v, Version: version, Logger: logger})
-	return gateway.RunStdio(ctx)
+	indexDone, err := ix.Start(ctx, logger)
+	if err != nil {
+		return err
+	}
+	gateway := server.New(server.Options{Vault: v, Index: ix, Version: version, Logger: logger})
+	err = gateway.RunStdio(ctx)
+	stop()
+	<-indexDone
+	return err
+}
+
+func reindexCommand(args []string, stdout, stderr io.Writer) error {
+	flags := flag.NewFlagSet("reindex", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	configPath := flags.String("config", "", "path to config.toml")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	cfg, err := loadConfig(*configPath)
+	if err != nil {
+		return err
+	}
+	_, ix, err := openVault(cfg)
+	if err != nil {
+		return err
+	}
+	defer ix.Close()
+	if err := ix.Rebuild(context.Background()); err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "indexed %d notes\n", ix.State().Notes)
+	return nil
+}
+
+func openVault(cfg *config.Config) (*vault.Vault, *index.Index, error) {
+	v, err := vault.New(vault.Options{Root: cfg.Vault.Path, Ignore: cfg.Vault.Ignore})
+	if err != nil {
+		return nil, nil, err
+	}
+	dataDir, err := config.DefaultDataDir()
+	if err != nil {
+		return nil, nil, err
+	}
+	ix, err := index.Open(filepath.Join(dataDir, "index.db"), v)
+	if err != nil {
+		return nil, nil, err
+	}
+	return v, ix, nil
 }
 
 func loadConfig(path string) (*config.Config, error) {

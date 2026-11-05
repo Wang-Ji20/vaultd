@@ -5,7 +5,7 @@ The long-term plan. Current work is tracked in [PLAN.md](PLAN.md).
 ## v1 (see SPEC.md)
 
 - [x] Read-only vault over stdio
-- [ ] Real search
+- [x] Real search
 - [ ] Shared HTTP endpoint with per-app tokens
 - [ ] Safe writes
 - [ ] Upstream proxy and audit log

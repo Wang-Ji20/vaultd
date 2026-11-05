@@ -10,7 +10,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 )
@@ -236,70 +235,4 @@ type Hit struct {
 	Snippet  string   `json:"snippet"`
 	Score    float64  `json:"score"`
 	Modified string   `json:"modified"`
-}
-
-// ScanSearch is the naive search: it reads every note under folder and scores
-// by how often the words of query occur. All words must occur.
-func (v *Vault) ScanSearch(query string, limit int, folder string) ([]Hit, error) {
-	words := strings.Fields(strings.ToLower(query))
-	if len(words) == 0 {
-		return nil, errors.New("query must not be empty")
-	}
-	clean, _, err := v.resolve(folder)
-	if err != nil {
-		return nil, err
-	}
-	hits := []Hit{}
-	err = v.WalkNotes(func(rel string, info fs.FileInfo) error {
-		if clean != "." && !isInside("/"+clean, "/"+rel, foldPaths) || info.Size() > MaxReadSize {
-			return nil
-		}
-		raw, err := os.ReadFile(filepath.Join(v.root, filepath.FromSlash(rel)))
-		if err != nil {
-			return nil
-		}
-		parsed := Parse(rel, raw)
-		if score := scoreWords(words, parsed); score > 0 {
-			hits = append(hits, Hit{
-				Path: rel, Title: parsed.Title, Tags: parsed.Tags, Score: score,
-				Snippet: snippetAround(parsed.Body, words[0]), Modified: FormatTime(info.ModTime()),
-			})
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	sort.SliceStable(hits, func(i, j int) bool { return hits[i].Score > hits[j].Score })
-	if len(hits) > limit {
-		hits = hits[:limit]
-	}
-	return hits, nil
-}
-
-func scoreWords(words []string, parsed Parsed) float64 {
-	haystack := strings.ToLower(parsed.Title + "\n" + strings.Join(parsed.Tags, " ") + "\n" + parsed.Body)
-	total := 0
-	for _, word := range words {
-		n := strings.Count(haystack, word)
-		if n == 0 {
-			return 0
-		}
-		total += n
-	}
-	return float64(total)
-}
-
-func snippetAround(body, word string) string {
-	const radius = 80
-	runes := []rune(body)
-	lower := []rune(strings.ToLower(body))
-	at := 0
-	// Lowercasing can change the number of runes; then just show the start.
-	if len(lower) == len(runes) {
-		if i := strings.Index(string(lower), word); i >= 0 {
-			at = len([]rune(string(lower)[:i]))
-		}
-	}
-	return strings.TrimSpace(string(runes[max(0, at-radius):min(len(runes), at+radius)]))
 }

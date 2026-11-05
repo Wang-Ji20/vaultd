@@ -11,6 +11,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/hortensia/vaultd/internal/index"
 	"github.com/hortensia/vaultd/internal/vault"
 )
 
@@ -47,13 +48,21 @@ func newTestGateway(t *testing.T) (*Gateway, string) {
 	t.Helper()
 	root := t.TempDir()
 	writeNote(t, root, "hello.md", "# Hello\nwombats are great\n")
-	writeNote(t, root, "sub/other.md", "nothing here\n")
+	writeNote(t, root, "sub/other.md", "# Other\nnothing here, see [[hello]]\n")
 	writeNote(t, root, ".git/secret.md", "wombats secret\n")
 	v, err := vault.New(vault.Options{Root: root, Ignore: []string{".git"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return New(Options{Vault: v, Version: "test"}), root
+	ix, err := index.Open(filepath.Join(t.TempDir(), "index.db"), v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ix.Close() })
+	if err := ix.Sync(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	return New(Options{Vault: v, Index: ix, Version: "test"}), root
 }
 
 // call returns a tool's JSON text and whether it reported an error.
@@ -110,6 +119,20 @@ func TestVaultReadListSearch(t *testing.T) {
 	}
 }
 
+func TestVaultRecentBacklinks(t *testing.T) {
+	g, _ := newTestGateway(t)
+	s := connect(t, g)
+	recent := callJSON[recentOutput](t, s, "vault.recent", map[string]any{"days": 1})
+	if len(recent.Notes) != 2 {
+		t.Errorf("recent: %+v", recent)
+	}
+	links := callJSON[backlinksOutput](t, s, "vault.backlinks", map[string]any{"path": "hello.md"})
+	if len(links.Backlinks) != 1 || links.Backlinks[0].Path != "sub/other.md" || links.Backlinks[0].Title != "Other" ||
+		!strings.Contains(links.Backlinks[0].Context, "[[hello]]") {
+		t.Errorf("backlinks: %+v", links)
+	}
+}
+
 func TestToolErrorsAreClear(t *testing.T) {
 	g, root := newTestGateway(t)
 	s := connect(t, g)
@@ -123,6 +146,9 @@ func TestToolErrorsAreClear(t *testing.T) {
 		{"vault.read", map[string]any{"path": ".git/secret.md"}, "ignored"},
 		{"vault.list", map[string]any{"folder": "C:/Windows"}, `":"`},
 		{"vault.search", map[string]any{"query": " "}, "empty"},
+		{"vault.search", map[string]any{"query": "x", "folder": "../.."}, "outside the vault"},
+		{"vault.backlinks", map[string]any{"path": "../x.md"}, "outside the vault"},
+		{"vault.backlinks", map[string]any{"path": "missing.md"}, "not found"},
 	}
 	for _, tc := range cases {
 		text, isErr := call(t, s, tc.tool, tc.args)

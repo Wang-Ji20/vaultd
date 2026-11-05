@@ -8,6 +8,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/hortensia/vaultd/internal/index"
 	"github.com/hortensia/vaultd/internal/vault"
 )
 
@@ -25,6 +26,7 @@ const StdioApp = "stdio"
 // Options configures a Gateway.
 type Options struct {
 	Vault   *vault.Vault
+	Index   *index.Index
 	Version string
 	Logger  *slog.Logger
 }
@@ -33,6 +35,7 @@ type Options struct {
 type Gateway struct {
 	mcp   *mcp.Server
 	vault *vault.Vault
+	index *index.Index
 	log   *slog.Logger
 }
 
@@ -46,7 +49,7 @@ func New(opts Options) *Gateway {
 		&mcp.Implementation{Name: "vaultd", Version: opts.Version},
 		&mcp.ServerOptions{Instructions: instructions, Logger: logger},
 	)
-	g := &Gateway{mcp: server, vault: opts.Vault, log: logger}
+	g := &Gateway{mcp: server, vault: opts.Vault, index: opts.Index, log: logger}
 	g.registerVaultTools()
 	return g
 }

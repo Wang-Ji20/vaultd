@@ -122,32 +122,3 @@ func TestWalkNotes(t *testing.T) {
 		t.Fatalf("got %v", seen)
 	}
 }
-
-func TestScanSearch(t *testing.T) {
-	v := sampleVault(t)
-	hits, err := v.ScanSearch("BUZZ", 10, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(hits) != 2 || hits[0].Path != "sub/deep.md" || hits[1].Path != "b.md" {
-		t.Fatalf("got %+v", hits)
-	}
-	if !strings.Contains(hits[0].Snippet, "buzz") {
-		t.Errorf("snippet %q", hits[0].Snippet)
-	}
-	if hits, _ := v.ScanSearch("buzz", 1, ""); len(hits) != 1 {
-		t.Errorf("limit: %d", len(hits))
-	}
-	if hits, _ := v.ScanSearch("buzz", 10, "sub"); len(hits) != 1 || hits[0].Path != "sub/deep.md" {
-		t.Errorf("folder: %+v", hits)
-	}
-	if hits, _ := v.ScanSearch("buzz march", 10, ""); len(hits) != 0 {
-		t.Errorf("all words required: %+v", hits)
-	}
-	if _, err := v.ScanSearch("  ", 10, ""); err == nil {
-		t.Error("empty query must fail")
-	}
-	if _, err := v.ScanSearch("x", 10, "../.."); err == nil {
-		t.Error("folder must pass the jail")
-	}
-}

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -21,7 +22,17 @@ func TestMain(m *testing.M) {
 		main()
 		os.Exit(0)
 	}
-	os.Exit(m.Run())
+	// Keep the index and audit log of every test away from the real data folder.
+	home, err := os.MkdirTemp("", "vaultd-test-home")
+	if err != nil {
+		panic(err)
+	}
+	os.Setenv("HOME", home)
+	os.Setenv("USERPROFILE", home)
+	os.Setenv("LOCALAPPDATA", home)
+	code := m.Run()
+	os.RemoveAll(home)
+	os.Exit(code)
 }
 
 // selfCommand returns a command that runs vaultd with args.
@@ -60,10 +71,12 @@ func TestStdioEndToEnd(t *testing.T) {
 	}
 	defer session.Close()
 
+	waitForIndex(t, session)
 	for tool, args := range map[string]map[string]any{
 		"vault.list":   {},
 		"vault.read":   {"path": "note.md"},
 		"vault.search": {"query": "wombat"},
+		"vault.recent": {},
 	} {
 		res, err := session.CallTool(ctx, &mcp.CallToolParams{Name: tool, Arguments: args})
 		if err != nil || res.IsError {
@@ -73,6 +86,35 @@ func TestStdioEndToEnd(t *testing.T) {
 		if !json.Valid([]byte(text)) || !strings.Contains(text, "note.md") {
 			t.Errorf("%s: %s", tool, text)
 		}
+	}
+}
+
+func waitForIndex(t *testing.T, session *mcp.ClientSession) {
+	t.Helper()
+	for range 500 {
+		res, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "vault.search", Arguments: map[string]any{"query": "x"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(res.Content[0].(*mcp.TextContent).Text, `"indexing":true`) {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("index never became ready")
+}
+
+func TestReindex(t *testing.T) {
+	vaultDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(vaultDir, "note.md"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	if err := dispatch([]string{"reindex", "--config", writeTestConfig(t, vaultDir)}, &stdout, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), "indexed 1 notes") {
+		t.Fatalf("got %q", stdout.String())
 	}
 }
 

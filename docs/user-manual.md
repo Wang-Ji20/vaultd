@@ -30,8 +30,17 @@ Any command accepts `--config <path>` to use another file.
 
 ```
 vaultd run --stdio     # serve one app over standard input and output
+vaultd reindex         # rebuild the search index from scratch
 vaultd version
 ```
+
+The search index is kept in `index.db` in the data folder. It can be deleted at any
+time; vaultd builds it again on the next start. While it is being built,
+`vault.search` returns what is indexed so far and says `"indexing": true`.
+
+On Linux, each vault folder uses one system "inotify" watch. If a very large vault
+reaches the limit, vaultd logs a warning and changes there appear only after a
+restart. Raise `fs.inotify.max_user_watches` to fix this.
 
 ## Connect an app over stdio
 
@@ -52,6 +61,8 @@ For Claude Desktop, add this to `claude_desktop_config.json`:
 | `vault.search` | Search notes by plain text                         |
 | `vault.read`   | Read one note (up to 1 MB)                         |
 | `vault.list`   | List the folders and notes directly inside a folder |
+| `vault.recent` | List recently modified notes, newest first         |
+| `vault.backlinks` | List the notes linking to a note                |
 
 `vault.read` returns the frontmatter separately, so `content` does not repeat it.
 
@@ -59,5 +70,6 @@ For Claude Desktop, add this to `claude_desktop_config.json`:
 
 ```
 go vet ./...
-go test ./...
+go test ./...          # includes the 20,000-note acceptance test
+go test -short ./...   # skips it
 ```
