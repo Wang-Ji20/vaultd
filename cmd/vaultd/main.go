@@ -29,6 +29,9 @@ const usage = `usage: vaultd <command>
 
   run [--config path] [--stdio]    run the gateway in the foreground
   token new [--config path] <app>  create an app token and print it once
+  hash-password [--config path] [--write]
+                                   prompt for the admin password; print its hash
+                                   or save it in the config with --write
   reindex [--config path]          rebuild the search index from scratch
   version                          print the version
 `
@@ -50,6 +53,8 @@ func dispatch(args []string, stdout, stderr io.Writer) error {
 		return runCommand(args[1:], stderr)
 	case "token":
 		return tokenCommand(args[1:], stdout, stderr)
+	case "hash-password":
+		return hashPasswordCommand(args[1:], os.Stdin, stdout, stderr)
 	case "reindex":
 		return reindexCommand(args[1:], stdout, stderr)
 	case "version":

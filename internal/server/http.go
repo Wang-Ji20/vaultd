@@ -25,6 +25,10 @@ func (g *Gateway) Handler(allowedHost string) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/mcp", bearer(endpoint))
 	mux.HandleFunc("GET /health", g.health)
+	if g.admin != nil {
+		mux.Handle("/admin", g.admin)
+		mux.Handle("/admin/", g.admin)
+	}
 	return g.refuseWhileDraining(requireHost(allowedHost, mux))
 }
 

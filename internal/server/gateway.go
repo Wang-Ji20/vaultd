@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"net/http"
 	"sync"
 	"sync/atomic"
 
@@ -46,6 +47,7 @@ type Gateway struct {
 	index   *index.Index
 	audit   *audit.Logger
 	proxy   *upstream.Manager
+	admin   http.Handler
 	version string
 	log     *slog.Logger
 

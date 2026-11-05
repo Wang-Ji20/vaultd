@@ -2,9 +2,11 @@ package vault
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 )
@@ -35,6 +37,27 @@ func (v *Vault) autocommit(abs, clean string, who WriteInfo) {
 	// stays out of vaultd's commit.
 	message := "vaultd: " + who.Tool + " " + clean + " (" + who.App + ")"
 	v.runGitLogged("commit", "-m", message, "--", file)
+}
+
+// GitStatus describes the vault's repository in a few words, for the portal.
+func (v *Vault) GitStatus() string {
+	if _, err := exec.LookPath("git"); err != nil {
+		return "git is not installed"
+	}
+	if !v.runGit("rev-parse", "--is-inside-work-tree") {
+		return "not a git repository"
+	}
+	cmd, cancel := v.gitCommand("status", "--porcelain")
+	defer cancel()
+	output, err := cmd.Output()
+	if err != nil {
+		return "git status failed"
+	}
+	changed := strings.Count(string(output), "\n")
+	if changed == 0 {
+		return "clean"
+	}
+	return fmt.Sprintf("%d uncommitted changes", changed)
 }
 
 func (v *Vault) runGit(args ...string) bool {

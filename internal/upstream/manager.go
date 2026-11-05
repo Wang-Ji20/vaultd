@@ -138,9 +138,19 @@ func Split(qualified string) (upstream, tool string, ok bool) {
 // the same time, so that one slow upstream delays the others as little as
 // possible. A failure only affects that upstream's tools.
 func (m *Manager) Connect(ctx context.Context) {
+	m.connect(ctx, func(c *conn) bool { return len(c.policy().Allow) > 0 })
+}
+
+// ConnectAll also opens upstreams with nothing allowed yet, so that the admin
+// portal can show which tools they offer.
+func (m *Manager) ConnectAll(ctx context.Context) {
+	m.connect(ctx, func(*conn) bool { return true })
+}
+
+func (m *Manager) connect(ctx context.Context, wanted func(*conn) bool) {
 	var wg sync.WaitGroup
 	for _, c := range m.all() {
-		if len(c.policy().Allow) == 0 {
+		if !wanted(c) {
 			continue
 		}
 		wg.Add(1)

@@ -32,6 +32,8 @@ Any command accepts `--config <path>` to use another file.
 vaultd run             # serve all apps at http://127.0.0.1:8765/mcp
 vaultd run --stdio     # serve one app over standard input and output
 vaultd token new NAME  # create a token for an app and print it once
+vaultd hash-password   # prompt for the admin password, print its hash
+                       # (--write saves it in the config instead)
 vaultd reindex         # rebuild the search index from scratch
 vaultd version
 ```

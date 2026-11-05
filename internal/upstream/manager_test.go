@@ -374,6 +374,24 @@ func TestStatusShowsAllToolsAndLocks(t *testing.T) {
 	}
 }
 
+func TestConnectAllIncludesUpstreamsWithNothingAllowed(t *testing.T) {
+	cfg := stdioConfig(t)
+	cfg.Allow = nil
+	m := newManager(t, cfg)
+	m.Connect(ctx)
+	if got := m.Status()[0].Status; got != StatusIdle {
+		t.Errorf("nothing allowed, so no connection needed: %s", got)
+	}
+	m.ConnectAll(ctx)
+	info := m.Status()[0]
+	if info.Status != StatusConnected || !hasTool(info, "echo", false) {
+		t.Errorf("got %+v", info)
+	}
+	if len(m.AllowedTools()) != 0 {
+		t.Error("connected does not mean allowed")
+	}
+}
+
 func hasTool(info Info, name string, locked bool) bool {
 	for _, tool := range info.Tools {
 		if tool.Name == name && tool.Locked == locked {

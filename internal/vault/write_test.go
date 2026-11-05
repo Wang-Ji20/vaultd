@@ -386,6 +386,26 @@ func TestNoCommitWhenDisabledOrNotARepo(t *testing.T) {
 	}
 }
 
+func TestGitStatus(t *testing.T) {
+	v := writableVault(t, true)
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is not installed")
+	}
+	if got := v.GitStatus(); got != "not a git repository" {
+		t.Errorf("got %q", got)
+	}
+	gitRepo(t, v)
+	git(t, v.root, "add", ".")
+	git(t, v.root, "-c", "commit.gpgsign=false", "commit", "-qm", "all")
+	if got := v.GitStatus(); got != "clean" {
+		t.Errorf("got %q", got)
+	}
+	write(t, v.root, "new.md", "x")
+	if got := v.GitStatus(); got != "1 uncommitted changes" {
+		t.Errorf("got %q", got)
+	}
+}
+
 func TestWriteSucceedsWhenGitFails(t *testing.T) {
 	v := writableVault(t, true)
 	gitRepo(t, v)
