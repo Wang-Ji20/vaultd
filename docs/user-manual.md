@@ -219,3 +219,6 @@ go vet ./...
 go test ./...          # includes the 20,000-note acceptance test
 go test -short ./...   # skips it
 ```
+
+Use `-short` with Go's race detector (`go test -race -short ./...`). The detector slows the
+code several times over, so the 20,000-note test would miss its time limit.
