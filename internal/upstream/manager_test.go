@@ -33,6 +33,9 @@ var (
 // fakeServer builds the test MCP server once per test run.
 func fakeServer(t *testing.T) string {
 	t.Helper()
+	if prebuilt := os.Getenv("VAULTD_FAKESERVER"); prebuilt != "" {
+		return prebuilt // for running compiled tests on a machine without Go
+	}
 	buildOnce.Do(func() {
 		dir, err := os.MkdirTemp("", "vaultd-fake")
 		if err != nil {

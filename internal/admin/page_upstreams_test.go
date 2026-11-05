@@ -2,6 +2,7 @@ package admin_test
 
 import (
 	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -12,6 +13,9 @@ import (
 
 func buildFake(t *testing.T) string {
 	t.Helper()
+	if prebuilt := os.Getenv("VAULTD_FAKESERVER"); prebuilt != "" {
+		return strings.ReplaceAll(prebuilt, `\`, `/`) // for running compiled tests on a machine without Go
+	}
 	path := filepath.Join(t.TempDir(), "fakeserver")
 	if runtime.GOOS == "windows" {
 		path += ".exe"

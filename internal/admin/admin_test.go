@@ -403,7 +403,8 @@ func TestOverview(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, page := f.get(t, "/admin/")
-	for _, want := range []string{"test-1", f.root, "vault.read", `hx-trigger="every 5s"`, "No upstreams"} {
+	configuredPath := strings.ReplaceAll(f.root, `\`, `/`) // as the test wrote it in the config
+	for _, want := range []string{"test-1", configuredPath, "vault.read", `hx-trigger="every 5s"`, "No upstreams"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("missing %q", want)
 		}
