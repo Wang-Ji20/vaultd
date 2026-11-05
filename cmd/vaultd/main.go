@@ -15,6 +15,7 @@ import (
 	"slices"
 	"syscall"
 
+	"github.com/hortensia/vaultd/internal/audit"
 	"github.com/hortensia/vaultd/internal/config"
 	"github.com/hortensia/vaultd/internal/index"
 	"github.com/hortensia/vaultd/internal/server"
@@ -86,9 +87,18 @@ func serve(ctx context.Context, store *config.Store, stdio bool, logger *slog.Lo
 		return err
 	}
 	defer ix.Close()
+	dataDir, err := config.DefaultDataDir()
+	if err != nil {
+		return err
+	}
+	auditLog, err := audit.Open(dataDir, server.AuditSettings(store.Get()))
+	if err != nil {
+		return err
+	}
+	defer auditLog.Close()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	gateway := server.New(server.Options{Store: store, Vault: v, Index: ix, Version: version, Logger: logger})
+	gateway := server.New(server.Options{Store: store, Vault: v, Index: ix, Audit: auditLog, Version: version, Logger: logger})
 	if err := gateway.Start(ctx); err != nil {
 		return err
 	}

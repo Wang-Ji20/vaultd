@@ -51,7 +51,7 @@ func startServer(t *testing.T) (*testServer, map[string]string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gateway := New(Options{Store: store, Vault: v, Index: ix, Version: testVersion, Logger: slog.New(slog.DiscardHandler)})
+	gateway := New(Options{Store: store, Vault: v, Index: ix, Audit: openTestAudit(t), Version: testVersion, Logger: slog.New(slog.DiscardHandler)})
 	ctx, cancel := context.WithCancel(context.Background())
 	if err := gateway.Start(ctx); err != nil {
 		t.Fatal(err)

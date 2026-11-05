@@ -7,7 +7,7 @@ Long-term items live in [ROADMAP.md](ROADMAP.md).
 - [x] 2. Real search
 - [x] 3. Shared endpoint
 - [x] 4. Safe writes
-- [ ] 5. Upstream proxy + audit log
+- [x] 5. Upstream proxy + audit log
 - [ ] 6. Admin portal
 - [ ] 7. Service + packaging
 

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/hortensia/vaultd/internal/audit"
 	"github.com/hortensia/vaultd/internal/config"
 	"github.com/hortensia/vaultd/internal/index"
 	"github.com/hortensia/vaultd/internal/vault"
@@ -61,6 +63,16 @@ func newTestStore(t *testing.T, root, extra string) *config.Store {
 	return store
 }
 
+func openTestAudit(t *testing.T) *audit.Logger {
+	t.Helper()
+	logger, err := audit.Open(t.TempDir(), audit.Settings{MaxSizeMB: 1, MaxFiles: 2, LogArguments: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { logger.Close() })
+	return logger
+}
+
 func newTestGateway(t *testing.T) (*Gateway, string) {
 	t.Helper()
 	root := t.TempDir()
@@ -86,7 +98,9 @@ func newTestGateway(t *testing.T) (*Gateway, string) {
 	if err := ix.Sync(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	return New(Options{Store: store, Vault: v, Index: ix, Version: "test"}), root
+	g := New(Options{Store: store, Vault: v, Index: ix, Audit: openTestAudit(t), Version: "test", Logger: slog.New(slog.DiscardHandler)})
+	t.Cleanup(g.proxy.Close)
+	return g, root
 }
 
 // call returns a tool's JSON text and whether it reported an error.

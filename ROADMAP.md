@@ -8,7 +8,7 @@ The long-term plan. Current work is tracked in [PLAN.md](PLAN.md).
 - [x] Real search
 - [x] Shared HTTP endpoint with per-app tokens
 - [x] Safe writes
-- [ ] Upstream proxy and audit log
+- [x] Upstream proxy and audit log
 - [ ] Admin portal
 - [ ] OS service and release builds
 

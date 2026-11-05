@@ -114,6 +114,39 @@ one commit, such as `vaultd: vault.append AI/log.md (cursor)`. Only that file is
 committed: anything else you have staged stays staged. If a commit fails, for example
 because git has no `user.name`, the write still counts and vaultd logs a warning.
 
+## Upstream servers
+
+An upstream is any other MCP server. Add it to `config.toml`, and its allowed tools
+appear to every app as `<upstream>.<tool>`:
+
+```toml
+[[upstreams]]
+name = "notes2"
+transport = "stdio"                      # or "http" with url = "..."
+command = "path/to/server"
+env = { API_KEY = "env:NOTES2_API_KEY" }  # read from vaultd's environment
+allow = ["search"]
+locked = ["delete_everything"]
+```
+
+- A tool not in `allow` is invisible and returns `tool not available`.
+- A tool in `locked` can never be enabled. Listing it in both is a config error.
+- Values in `env` and `headers` must be `env:NAME`. Set the secret in the environment
+  vaultd runs in, so it never sits in the config file.
+- vaultd connects when an app first needs the upstream. A crashed child process restarts
+  by itself, waiting 1 s, then 2 s, up to 60 s between attempts.
+- If an upstream is down, its tools report an error. Everything else keeps working.
+
+## Audit log
+
+Each tool call adds one line to `audit.jsonl` in the data folder, with the time, app,
+tool, arguments, outcome, duration and result size. Strings over 500 characters are cut.
+Set `audit.log_arguments = false` to record only names and sizes. Tokens, headers and
+environment values are never logged.
+
+When the file reaches `audit.max_size_mb` it is renamed `audit.jsonl.1`, and so on, up to
+`audit.max_files` files in all.
+
 ## Test
 
 ```

@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 
+	"github.com/hortensia/vaultd/internal/audit"
 	"github.com/hortensia/vaultd/internal/config"
 	"github.com/hortensia/vaultd/internal/vault"
 )
@@ -19,6 +20,15 @@ func VaultOptions(cfg *config.Config) vault.Options {
 	}
 }
 
+// AuditSettings derives the audit log's settings from a config.
+func AuditSettings(cfg *config.Config) audit.Settings {
+	return audit.Settings{
+		MaxSizeMB:    cfg.Audit.MaxSizeMB,
+		MaxFiles:     cfg.Audit.MaxFiles,
+		LogArguments: cfg.Audit.LogArguments,
+	}
+}
+
 // Start begins indexing and applies config changes until ctx ends. Stop it by
 // cancelling ctx, then calling Wait.
 func (g *Gateway) Start(ctx context.Context) error {
@@ -31,6 +41,7 @@ func (g *Gateway) Start(ctx context.Context) error {
 
 // Wait blocks until the background work begun by Start has stopped.
 func (g *Gateway) Wait() {
+	g.proxy.Close()
 	g.indexMu.Lock()
 	defer g.indexMu.Unlock()
 	if g.indexCancel != nil {
@@ -63,6 +74,8 @@ func (g *Gateway) applyConfig(ctx context.Context, old, updated *config.Config) 
 	if old.Server.Listen != updated.Server.Listen {
 		g.log.Warn("server.listen changed; restart vaultd to apply it")
 	}
+	g.applyUpstreams(updated)
+	g.audit.SetSettings(AuditSettings(updated))
 	options := VaultOptions(updated)
 	options.Logger = g.log
 	v, err := vault.New(options)
