@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
@@ -22,15 +23,23 @@ var ErrNotFound = errors.New("not found")
 
 // Options configures a Vault.
 type Options struct {
-	Root   string
-	Ignore []string
+	Root          string
+	Ignore        []string
+	Writable      []string
+	MemoryFile    string
+	GitAutocommit bool
+	Logger        *slog.Logger
 }
 
 // Vault is a jailed view of one vault folder. It holds no open files and is
 // safe for concurrent use.
 type Vault struct {
-	root   string // absolute, symlinks resolved
-	ignore []string
+	root          string // absolute, symlinks resolved
+	ignore        []string
+	writable      []string
+	memoryFile    string
+	gitAutocommit bool
+	log           *slog.Logger
 }
 
 // New opens the vault at opts.Root.
@@ -43,11 +52,21 @@ func New(opts Options) (*Vault, error) {
 	if err != nil {
 		return nil, fmt.Errorf("vault path: %w", err)
 	}
-	return &Vault{root: root, ignore: opts.Ignore}, nil
+	return &Vault{
+		root:          root,
+		ignore:        opts.Ignore,
+		writable:      opts.Writable,
+		memoryFile:    opts.MemoryFile,
+		gitAutocommit: opts.GitAutocommit,
+		log:           opts.Logger,
+	}, nil
 }
 
 // Root returns the vault's absolute path.
 func (v *Vault) Root() string { return v.root }
+
+// MemoryFile returns the configured memory note's path, or "".
+func (v *Vault) MemoryFile() string { return v.memoryFile }
 
 // Note is a note as returned by Read.
 type Note struct {
