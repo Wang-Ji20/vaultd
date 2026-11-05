@@ -23,3 +23,13 @@ Measured on an Intel Core Ultra 5 125H (18 threads), under WSL2, on Go 1.27.3:
 | Sync when nothing changed           | 67-70 ms  |         |
 | One search over 20,000 notes        | < 1 ms    |         |
 
+The same test on native Windows, on the same machine, with the binary cross-compiled:
+
+| Step                                | Time     | Goal    |
+|-------------------------------------|----------|---------|
+| Full index of 20,000 notes          | 21.6 s   | < 60 s  |
+| Sync when nothing changed           | 51 ms    |         |
+| One search over 20,000 notes        | 1 ms     |         |
+
+Creating and fsync-heavy writing of many small files costs more on NTFS.
+

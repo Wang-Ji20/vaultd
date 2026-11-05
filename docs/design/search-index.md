@@ -28,10 +28,48 @@ is *now*. This one rule covers all the ways editors save:
 | Renaming a temp file over| create (or rename)     | a file      | reindex   |
 | Delete, then create      | remove, create         | a file      | reindex   |
 | Deleting                 | remove                 | missing     | remove    |
-| A folder moved in        | create                 | a folder    | full sync |
+| A folder moved in        | create                 | a folder    | watch it again, full sync |
+
+A folder's time changes whenever a file in it does, and Windows reports that. So a folder
+only causes a sync if it was created or moved in.
 
 If the system drops events (an "overflow"), nobody knows what changed, so vaultd runs
 a full sync.
+
+## Two ways of watching
+
+| System        | How                                         | Why                     |
+|---------------|---------------------------------------------|-------------------------|
+| Linux, macOS  | fsnotify, one watch per folder              | The system's API works this way |
+| Windows       | Our own `ReadDirectoryChangesW`, one handle on the root, subtree mode | See below |
+
+**Why Windows is different.** This departs from the spec, which names fsnotify, and the
+maintainer chose it. fsnotify keeps a handle open on each watched folder, and Windows then
+refuses to rename any folder with a folder below it:
+
+```
+rename leaf/n.md     --> ok
+rename leaf          --> ok
+rename parent/child  --> ok
+rename parent        --> Access is denied   (parent/child is open)
+```
+
+So renaming a folder in Obsidian would fail while vaultd runs. fsnotify has a subtree mode
+inside, but it is not part of its public API. The Windows code uses only the standard
+library's `syscall` package and adds no dependency.
+
+The alternatives were polling (constant disk work, and it may miss the 2-second goal on a
+large vault) and documenting the limit (users would hit it in normal use).
+
+**A Linux detail: renamed folders.** Rename `parent` and two things go wrong with inotify,
+the Linux system behind fsnotify:
+
+- `parent/child` keeps its old watch. Adding it under the new name returns that same watch
+  with the old name, so its events report a path that no longer exists, and the file looks
+  deleted. So vaultd first removes watches whose paths are gone, then adds fresh ones.
+- The old watch's "moved" event arrives after the "created" event for the new name, and it
+  removes the watch on the renamed folder. So watches are added once more after the
+  debounce, when all events have landed.
 
 ## Search during indexing
 

@@ -33,3 +33,6 @@ design document named.
   `internal/admin/web/` with their licences. `AGENTS.md` itself has not been changed.
 - **Colours and AA.** Several of the spec's light-mode colours fail WCAG AA as text. They stay
   for fills and marks, and text uses darker tokens. See `docs/design/admin.md`.
+- **Windows file watching.** SPEC §3 names fsnotify, but on Windows its per-folder handles block
+  renaming any folder with a subfolder. The maintainer chose a small watcher of our own on
+  Windows only, with no new dependency. See `docs/design/search-index.md`.

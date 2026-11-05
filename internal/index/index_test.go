@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -506,6 +507,33 @@ func TestWatcherSeesChanges(t *testing.T) {
 	time.Sleep(700 * time.Millisecond)
 	if got := search(t, ix, "stillignored"); got != "" {
 		t.Errorf("ignored folder indexed: %q", got)
+	}
+}
+
+// Regression test for two bugs. Per-folder watches on Windows made it refuse to
+// rename any folder with a subfolder while vaultd ran. On Linux, folders below a
+// renamed one kept reporting events under their old path.
+func TestWatchingNeverBlocksRenamingFolders(t *testing.T) {
+	root := t.TempDir()
+	put(t, root, "parent/child/deep/note.md", "wombat")
+	ix := openTest(t, root)
+	startWatching(t, ix)
+	for _, step := range [][2]string{{"parent/child", "parent/child2"}, {"parent", "parent2"}} {
+		from, to := filepath.Join(root, filepath.FromSlash(step[0])), filepath.Join(root, filepath.FromSlash(step[1]))
+		if err := os.Rename(from, to); err != nil {
+			t.Fatalf("rename %s: %v", step[0], err)
+		}
+	}
+	waitFor(t, 2*time.Second, "index follows the renames", func() bool {
+		return search(t, ix, "wombat") == "parent2/child2/deep/note.md"
+	})
+	// Every level of the renamed tree is still being watched.
+	for _, note := range []string{"parent2/top.md", "parent2/child2/middle.md", "parent2/child2/deep/later.md"} {
+		put(t, root, note, "numbat "+path.Base(note))
+		waitFor(t, 2*time.Second, "watching continues at "+note, func() bool {
+			hits, err := ix.Search(ctx, path.Base(note), 5, "")
+			return err == nil && paths(hits) == note
+		})
 	}
 }
 
