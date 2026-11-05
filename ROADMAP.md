@@ -10,7 +10,7 @@ The long-term plan. Current work is tracked in [PLAN.md](PLAN.md).
 - [x] Safe writes
 - [x] Upstream proxy and audit log
 - [x] Admin portal
-- [ ] OS service and release builds
+- [x] OS service and release builds
 
 ## Not planned for v1
 

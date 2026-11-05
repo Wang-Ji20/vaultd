@@ -15,16 +15,25 @@ right version just for this project:
 GOTOOLCHAIN=go1.27.3 CGO_ENABLED=0 go build ./cmd/vaultd
 ```
 
+Release binaries for `linux/amd64`, `linux/arm64` and `windows/amd64`:
+
+```
+scripts/release.sh 1.0.0
+```
+
 ## Configure
 
-Copy `config.example.toml` to the default location and set `vault.path`:
+The easy way is `vaultd init`. It asks for the vault folder, the writable folders and a first
+app name, creates the config and prints a token. It never replaces an existing config.
+
+To do it by hand, copy `config.example.toml` to the default location and set `vault.path`:
 
 | System  | Config file                                                   | Data folder                   |
 |---------|---------------------------------------------------------------|-------------------------------|
 | Linux   | `$XDG_CONFIG_HOME/vaultd/config.toml` or `~/.config/vaultd/…` | `~/.local/share/vaultd/`      |
 | Windows | `%APPDATA%\vaultd\config.toml`                                | `%LOCALAPPDATA%\vaultd\`      |
 
-Any command accepts `--config <path>` to use another file.
+Commands accept `--config <path>` and `--data-dir <path>` to use other locations.
 
 ## Run
 
@@ -50,6 +59,36 @@ Changes to `config.toml` apply without a restart, except `server.listen`. If a c
 is invalid, vaultd logs an error and keeps using the last good config.
 
 `GET /health` answers `{"status":"ok","version":"..."}` without a token.
+
+## Run as a service
+
+```
+vaultd install     # register with the system
+vaultd start
+vaultd stop
+vaultd uninstall
+```
+
+**Linux** uses a systemd user service. It stops when you log out, unless you run
+`loginctl enable-linger $USER`. Read its log with `journalctl --user -u vaultd`.
+Upstream secrets go in a file the service reads:
+
+```
+systemctl --user edit vaultd
+
+[Service]
+Environment=IBKR_TOKEN=...
+```
+
+**Windows** uses a Windows Service named "Vault Gateway (vaultd)". Run `install` from a
+terminal opened as administrator. It runs as the LocalSystem account, not as you, so:
+
+- Upstream secrets must be system environment variables.
+- Git may refuse your vault as "dubious ownership". To allow it, add the vault as a
+  `safe.directory` in the system git config. A failed commit is logged, and the write stands.
+- Its log is `vaultd.log` in the data folder.
+
+The service keeps using the config and data locations in force when you ran `install`.
 
 ## Connect an app over HTTP
 

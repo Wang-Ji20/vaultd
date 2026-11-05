@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -15,9 +14,7 @@ import (
 )
 
 func hashPasswordCommand(args []string, stdin *os.File, stdout, stderr io.Writer) error {
-	flags := flag.NewFlagSet("hash-password", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	configPath := flags.String("config", "", "path to config.toml")
+	flags, where := newFlags("hash-password", stderr)
 	write := flags.Bool("write", false, "save the hash in the config instead of printing it")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -34,7 +31,7 @@ func hashPasswordCommand(args []string, stdin *os.File, stdout, stderr io.Writer
 		fmt.Fprintln(stdout, hash)
 		return nil
 	}
-	store, err := openStore(*configPath)
+	store, err := where.openStore()
 	if err != nil {
 		return err
 	}

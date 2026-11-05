@@ -46,7 +46,8 @@ If vaultd itself crashes, nothing gets to do that. On Linux the child sees its i
 close, which is how an MCP server knows to exit. On Windows, vaultd joins a *job object*
 with "kill on close" at startup. Children inherit the job from their first instant, and
 Windows closes the job when vaultd dies for any reason. Joining first means no child can
-slip out between starting and being added.
+slip out between starting and being added. A test kills vaultd outright and checks that its
+child is gone, on both systems.
 
 ## Publishing tools
 

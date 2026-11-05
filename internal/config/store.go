@@ -37,6 +37,23 @@ type Store struct {
 	listeners []func(old, updated *Config)
 }
 
+// WriteNew validates cfg and saves it as a new file. It refuses to replace an
+// existing config.
+func WriteNew(path string, cfg *Config) error {
+	if _, err := os.Stat(path); err == nil {
+		return fmt.Errorf("%s already exists; edit it, or remove it first", path)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("save config: %w", err)
+	}
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	if err := cfg.EnsureWritableFolders(); err != nil {
+		return err
+	}
+	return writeAtomic(path, cfg)
+}
+
 // OpenStore loads the config at path. Backups go to backupDir.
 func OpenStore(path, backupDir string) (*Store, error) {
 	cfg, err := Load(path)

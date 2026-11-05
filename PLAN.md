@@ -9,7 +9,7 @@ Long-term items live in [ROADMAP.md](ROADMAP.md).
 - [x] 4. Safe writes
 - [x] 5. Upstream proxy + audit log
 - [x] 6. Admin portal
-- [ ] 7. Service + packaging
+- [x] 7. Service + packaging
 
 ## Decisions on the spec
 
@@ -36,3 +36,9 @@ design document named.
 - **Windows file watching.** SPEC §3 names fsnotify, but on Windows its per-folder handles block
   renaming any folder with a subfolder. The maintainer chose a small watcher of our own on
   Windows only, with no new dependency. See `docs/design/search-index.md`.
+
+## Not yet verified
+
+- Installing and running the Windows Service (it needs administrator rights).
+- Claude Desktop, Cursor and DeepSeek Harness themselves. Tests use the official SDK client.
+- The GitHub Actions workflow, which has no remote to run on yet.

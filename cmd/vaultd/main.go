@@ -15,6 +15,8 @@ import (
 	"slices"
 	"syscall"
 
+	"github.com/kardianos/service"
+
 	"github.com/hortensia/vaultd/internal/admin"
 	"github.com/hortensia/vaultd/internal/audit"
 	"github.com/hortensia/vaultd/internal/config"
@@ -28,13 +30,17 @@ var version = "dev"
 
 const usage = `usage: vaultd <command>
 
-  run [--config path] [--stdio]    run the gateway in the foreground
-  token new [--config path] <app>  create an app token and print it once
-  hash-password [--config path] [--write]
-                                   prompt for the admin password; print its hash
-                                   or save it in the config with --write
-  reindex [--config path]          rebuild the search index from scratch
-  version                          print the version
+  run [--stdio]             run the gateway in the foreground
+  init                      create a config and the first app token, by questions
+  token new <app>           create an app token and print it once
+  hash-password [--write]   prompt for the admin password; print its hash,
+                            or save it in the config with --write
+  reindex                   rebuild the search index from scratch
+  install | uninstall       add or remove the OS service
+  start | stop              start or stop the OS service
+  version                   print the version
+
+All commands except version accept --config <path> and --data-dir <path>.
 `
 
 func main() {
@@ -58,6 +64,10 @@ func dispatch(args []string, stdout, stderr io.Writer) error {
 		return hashPasswordCommand(args[1:], os.Stdin, stdout, stderr)
 	case "reindex":
 		return reindexCommand(args[1:], stdout, stderr)
+	case "init":
+		return initCommand(args[1:], os.Stdin, stdout, stderr)
+	case "install", "uninstall", "start", "stop":
+		return serviceCommand(args[0], args[1:], stdout, stderr)
 	case "version":
 		fmt.Fprintln(stdout, version)
 		return nil
@@ -66,38 +76,86 @@ func dispatch(args []string, stdout, stderr io.Writer) error {
 	return fmt.Errorf("unknown command %q", args[0])
 }
 
-func runCommand(args []string, stderr io.Writer) error {
-	flags := flag.NewFlagSet("run", flag.ContinueOnError)
+// paths holds the two locations every command needs. Flags override the
+// platform's defaults.
+type paths struct {
+	config, data string
+}
+
+func addPathFlags(flags *flag.FlagSet) *paths {
+	p := &paths{}
+	flags.StringVar(&p.config, "config", "", "path to config.toml")
+	flags.StringVar(&p.data, "data-dir", "", "folder for the index, audit log and backups")
+	return p
+}
+
+// resolve fills in defaults and makes both paths absolute.
+func (p *paths) resolve() error {
+	var err error
+	if p.config == "" {
+		if p.config, err = config.DefaultPath(); err != nil {
+			return err
+		}
+	}
+	if p.data == "" {
+		if p.data, err = config.DefaultDataDir(); err != nil {
+			return err
+		}
+	}
+	if p.config, err = filepath.Abs(p.config); err != nil {
+		return err
+	}
+	p.data, err = filepath.Abs(p.data)
+	return err
+}
+
+func (p *paths) openStore() (*config.Store, error) {
+	if err := p.resolve(); err != nil {
+		return nil, err
+	}
+	return config.OpenStore(p.config, p.data)
+}
+
+func newFlags(name string, stderr io.Writer) (*flag.FlagSet, *paths) {
+	flags := flag.NewFlagSet(name, flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	configPath := flags.String("config", "", "path to config.toml")
+	return flags, addPathFlags(flags)
+}
+
+func runCommand(args []string, stderr io.Writer) error {
+	flags, where := newFlags("run", stderr)
 	stdio := flags.Bool("stdio", false, "serve over standard input and output")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	store, err := openStore(*configPath)
-	if err != nil {
+	if err := where.resolve(); err != nil {
 		return err
+	}
+	if !*stdio && !service.Interactive() {
+		return runAsService(where, stderr)
 	}
 	// Stdout belongs to the MCP protocol in stdio mode, so logs go to stderr.
 	logger := slog.New(slog.NewTextHandler(stderr, nil))
 	slog.SetDefault(logger)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	return serve(ctx, store, *stdio, logger)
+	return serve(ctx, where, *stdio, logger)
 }
 
-// serve runs the gateway until ctx ends, then closes everything in order.
-func serve(ctx context.Context, store *config.Store, stdio bool, logger *slog.Logger) error {
-	v, ix, err := openVault(store.Get())
+// serve runs the gateway until ctx ends, then closes everything in order:
+// requests first, then upstream children and the watcher, then the audit log
+// and the database, which the deferred calls do in reverse.
+func serve(ctx context.Context, where *paths, stdio bool, logger *slog.Logger) error {
+	store, err := where.openStore()
+	if err != nil {
+		return err
+	}
+	v, ix, err := openVault(store.Get(), where.data)
 	if err != nil {
 		return err
 	}
 	defer ix.Close()
-	dataDir, err := config.DefaultDataDir()
-	if err != nil {
-		return err
-	}
-	auditLog, err := audit.Open(dataDir, server.AuditSettings(store.Get()))
+	auditLog, err := audit.Open(where.data, server.AuditSettings(store.Get()))
 	if err != nil {
 		return err
 	}
@@ -121,17 +179,15 @@ func serve(ctx context.Context, store *config.Store, stdio bool, logger *slog.Lo
 }
 
 func reindexCommand(args []string, stdout, stderr io.Writer) error {
-	flags := flag.NewFlagSet("reindex", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	configPath := flags.String("config", "", "path to config.toml")
+	flags, where := newFlags("reindex", stderr)
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	store, err := openStore(*configPath)
+	store, err := where.openStore()
 	if err != nil {
 		return err
 	}
-	_, ix, err := openVault(store.Get())
+	_, ix, err := openVault(store.Get(), where.data)
 	if err != nil {
 		return err
 	}
@@ -144,19 +200,18 @@ func reindexCommand(args []string, stdout, stderr io.Writer) error {
 }
 
 func tokenCommand(args []string, stdout, stderr io.Writer) error {
+	const tokenUsage = "usage: vaultd token new [--config path] <app-name>"
 	if len(args) == 0 || args[0] != "new" {
-		return errors.New("usage: vaultd token new [--config path] <app-name>")
+		return errors.New(tokenUsage)
 	}
-	flags := flag.NewFlagSet("token new", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	configPath := flags.String("config", "", "path to config.toml")
+	flags, where := newFlags("token new", stderr)
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
 	}
 	if flags.NArg() != 1 {
-		return errors.New("usage: vaultd token new [--config path] <app-name>")
+		return errors.New(tokenUsage)
 	}
-	store, err := openStore(*configPath)
+	store, err := where.openStore()
 	if err != nil {
 		return err
 	}
@@ -181,12 +236,8 @@ func addApp(store *config.Store, name string) (string, error) {
 	return token, err
 }
 
-func openVault(cfg *config.Config) (*vault.Vault, *index.Index, error) {
+func openVault(cfg *config.Config, dataDir string) (*vault.Vault, *index.Index, error) {
 	v, err := vault.New(server.VaultOptions(cfg))
-	if err != nil {
-		return nil, nil, err
-	}
-	dataDir, err := config.DefaultDataDir()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -195,18 +246,4 @@ func openVault(cfg *config.Config) (*vault.Vault, *index.Index, error) {
 		return nil, nil, err
 	}
 	return v, ix, nil
-}
-
-func openStore(path string) (*config.Store, error) {
-	if path == "" {
-		var err error
-		if path, err = config.DefaultPath(); err != nil {
-			return nil, err
-		}
-	}
-	dataDir, err := config.DefaultDataDir()
-	if err != nil {
-		return nil, err
-	}
-	return config.OpenStore(path, dataDir)
 }

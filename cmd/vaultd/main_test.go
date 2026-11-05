@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -208,6 +209,117 @@ func waitForAccepted(addr, token string) bool {
 		time.Sleep(10 * time.Millisecond)
 	}
 	return false
+}
+
+func fakeServerPath(t *testing.T) string {
+	t.Helper()
+	if prebuilt := os.Getenv("VAULTD_FAKESERVER"); prebuilt != "" {
+		return prebuilt // for running compiled tests on a machine without Go
+	}
+	path := filepath.Join(t.TempDir(), "fakeserver")
+	if runtime.GOOS == "windows" {
+		path += ".exe"
+	}
+	output, err := exec.Command("go", "build", "-o", path, "../../internal/upstream/testdata/fakeserver").CombinedOutput()
+	if err != nil {
+		t.Fatalf("%v\n%s", err, output)
+	}
+	return path
+}
+
+func processAlive(pid int) bool {
+	if runtime.GOOS == "windows" {
+		output, _ := exec.Command("tasklist", "/FI", "PID eq "+strconv.Itoa(pid)).Output()
+		return strings.Contains(string(output), strconv.Itoa(pid))
+	}
+	_, err := os.Stat("/proc/" + strconv.Itoa(pid))
+	return err == nil
+}
+
+// Killing vaultd outright gives it no chance to stop its children. They must
+// die anyway: by a job object on Windows, by their input closing elsewhere.
+func TestUpstreamChildrenDieWithVaultd(t *testing.T) {
+	fake := strings.ReplaceAll(fakeServerPath(t), `\`, `/`)
+	configPath := filepath.Join(t.TempDir(), "config.toml")
+	body := "[vault]\npath = \"" + strings.ReplaceAll(t.TempDir(), `\`, `/`) + "\"\n" +
+		"[[upstreams]]\nname = \"fake\"\ntransport = \"stdio\"\ncommand = \"" + fake + "\"\nallow = [\"pid\"]\n"
+	if err := os.WriteFile(configPath, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cmd := selfCommand(t, "run", "--stdio", "--config", configPath)
+	ctx := context.Background()
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "1"}, nil)
+	transport := &mcp.CommandTransport{Command: cmd}
+	session, err := client.Connect(ctx, transport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+	res, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "fake.pid"})
+	if err != nil || res.IsError {
+		t.Fatalf("%v %+v", err, res)
+	}
+	pid, err := strconv.Atoi(res.Content[0].(*mcp.TextContent).Text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !processAlive(pid) {
+		t.Skip("cannot observe processes here")
+	}
+	if err := cmd.Process.Kill(); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for processAlive(pid) {
+		if time.Now().After(deadline) {
+			t.Fatal("the child outlived vaultd")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func TestHashPasswordWritesConfig(t *testing.T) {
+	configPath := writeTestConfig(t, t.TempDir())
+	input, err := os.CreateTemp(t.TempDir(), "stdin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer input.Close()
+	if _, err := input.WriteString("my password\n"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := input.Seek(0, 0); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	if err := hashPasswordCommand([]string{"--config", configPath, "--write"}, input, &stdout, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(saved), "my password") || !strings.Contains(string(saved), "$2a$") {
+		t.Fatalf("got %s", saved)
+	}
+	if _, err := hashPassword(""); err == nil {
+		t.Error("empty password")
+	}
+	if _, err := hashPassword(strings.Repeat("x", 73)); err == nil {
+		t.Error("bcrypt's limit must give a clear error")
+	}
+}
+
+func TestDataDirFlagIsUsed(t *testing.T) {
+	vaultDir, dataDir := t.TempDir(), t.TempDir()
+	var stdout, stderr bytes.Buffer
+	args := []string{"reindex", "--config", writeTestConfig(t, vaultDir), "--data-dir", dataDir}
+	if err := dispatch(args, &stdout, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dataDir, "index.db")); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestVersionAndUnknownCommand(t *testing.T) {

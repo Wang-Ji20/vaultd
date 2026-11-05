@@ -184,6 +184,28 @@ func TestReloadIgnoresIdenticalFile(t *testing.T) {
 	}
 }
 
+func TestWriteNew(t *testing.T) {
+	cfg := validConfig(t)
+	path := filepath.Join(t.TempDir(), "sub", "config.toml")
+	if err := WriteNew(path, cfg); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := Load(path)
+	if err != nil || loaded.Vault.Path != cfg.Vault.Path {
+		t.Fatalf("%+v %v", loaded, err)
+	}
+	if info, err := os.Stat(filepath.Join(cfg.Vault.Path, "AI")); err != nil || !info.IsDir() {
+		t.Errorf("writable folder missing: %v", err)
+	}
+	if err := WriteNew(path, cfg); err == nil || !strings.Contains(err.Error(), "already exists") {
+		t.Errorf("must not replace a config: %v", err)
+	}
+	cfg.Server.Listen = "0.0.0.0:1"
+	if err := WriteNew(filepath.Join(t.TempDir(), "c.toml"), cfg); err == nil {
+		t.Error("must validate")
+	}
+}
+
 func TestTokens(t *testing.T) {
 	token, hash := NewToken()
 	other, _ := NewToken()

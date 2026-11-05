@@ -10,9 +10,9 @@ A crash never leaves half a file.
 **Bearer token.** A secret string an app sends with each request. Whoever holds
 ("bears") it is treated as that app.
 
-**bm25.** The standard formula for ranking search results by relevance.
-
 **bcrypt.** A deliberately slow way to hash a password, so guessing is expensive.
+
+**bm25.** The standard formula for ranking search results by relevance.
 
 **CSP (Content Security Policy).** A rule sent to the browser about which scripts and
 styles a page may load. It limits what injected content could do.
@@ -40,13 +40,16 @@ applies rules in one place.
 **Loopback address.** An address such as `127.0.0.1` that only programs on the
 same machine can reach.
 
-**MCP (Model Context Protocol).** The standard way AI apps talk to tool servers.
-
 **Job object.** A Windows feature that groups processes, so they can end together.
+
+**MCP (Model Context Protocol).** The standard way AI apps talk to tool servers.
 
 **Path jail.** The check that keeps every file access inside the vault folder.
 
 **stdio.** Talking to a program through its standard input and output streams.
+
+**Service.** A program the operating system keeps running in the background: a systemd
+user service on Linux, a Windows Service on Windows.
 
 **Streamable HTTP.** The way MCP runs over HTTP.
 
@@ -54,11 +57,11 @@ same machine can reach.
 
 **TOML.** A simple text format for configuration files.
 
-**WCAG AA.** A common accessibility standard. Among other things, it requires a contrast
-of at least 4.5:1 for normal text and 3:1 for controls.
-
 **Upstream.** Another MCP server that vaultd forwards tool calls to.
 
 **Vault.** An Obsidian vault: a folder of Markdown files.
+
+**WCAG AA.** A common accessibility standard. Among other things, it requires a contrast
+of at least 4.5:1 for normal text and 3:1 for controls.
 
 **Wikilink.** Obsidian's link syntax: `[[Note name]]`.

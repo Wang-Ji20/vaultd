@@ -14,7 +14,7 @@ AI app --stdio--------------------------> MCP server --> tool functions --> path
 
 | Package           | Job                                                  |
 |-------------------|------------------------------------------------------|
-| `cmd/vaultd`      | The command line                                     |
+| `cmd/vaultd`      | The command line and the OS service                  |
 | `internal/config` | Load, validate, save and hot reload `config.toml`    |
 | `internal/server` | Expose tools over HTTP and stdio; check tokens       |
 | `internal/vault`  | Path jail, note parsing, reading and safe writing    |
@@ -59,6 +59,7 @@ browser --> Host check --> /admin --> session and CSRF checks --> page
 - [The upstream proxy](design/upstream.md)
 - [The audit log](design/audit.md)
 - [The admin portal](design/admin.md)
+- [Running as a service](design/service.md)
 
 ## Performance
 
