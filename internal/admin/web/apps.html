@@ -1,0 +1,41 @@
+{{define "content"}}
+{{with .Data.StatsErr}}<p class="error" role="alert">{{.}}</p>{{end}}
+{{if .Data.NewToken}}
+<section class="group pad stack notice" aria-label="New token">
+  <p><strong>Token for {{.Data.NewApp}}.</strong> Copy it now: it will not be shown again.</p>
+  <pre><code id="new-token">{{.Data.NewToken}}</code></pre>
+  <button type="button" data-copy="new-token">Copy</button>
+</section>
+{{end}}
+<h2>Apps</h2>
+{{if .Data.Apps}}
+<ul class="group">
+  {{range .Data.Apps}}
+  <li class="row">
+    <div><strong>{{.Name}}</strong><br><small class="muted">Calls: {{.Calls}} · {{if .LastSeen}}last seen {{when .LastSeen}}{{else}}never seen{{end}}</small></div>
+    <div class="actions">
+      {{template "appaction" dict "action" "rotate" "label" "Rotate" "name" .Name "csrf" $.CSRF "confirm" "Replace this token? The old one stops working at once."}}
+      {{template "appaction" dict "action" "revoke" "label" "Revoke" "name" .Name "csrf" $.CSRF "confirm" "Revoke this app's access?"}}
+    </div>
+  </li>
+  {{end}}
+</ul>
+{{else}}<p class="group pad muted">No apps yet.</p>{{end}}
+<h2>New token</h2>
+<form class="group pad inline" method="post" action="/admin/apps/new" hx-post="/admin/apps/new" hx-target="#main" hx-select="#main" hx-swap="outerHTML">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <label for="app-name">App name</label>
+  <input id="app-name" name="name" required placeholder="cursor">
+  <button class="primary">New token</button>
+</form>
+<h2>Connect an app</h2>
+{{range .Data.Snippets}}
+<section class="group pad stack snippet">
+  <h3>{{.Name}}</h3>
+  <small class="muted">{{.Hint}}</small>
+  <pre><code id="snippet-{{.ID}}">{{.Text}}</code></pre>
+  <button type="button" data-copy="snippet-{{.ID}}">Copy</button>
+</section>
+{{end}}
+{{end}}
+{{define "appaction"}}<form method="post" action="/admin/apps/{{.action}}" hx-post="/admin/apps/{{.action}}" hx-target="#main" hx-select="#main" hx-swap="outerHTML" hx-confirm="{{.confirm}}"><input type="hidden" name="csrf" value="{{.csrf}}"><input type="hidden" name="name" value="{{.name}}"><button>{{.label}}</button></form>{{end}}

@@ -29,6 +29,7 @@ var pageNames = []string{
 	"setup",
 	"login",
 	"overview",
+	"apps",
 }
 
 func parsePages() (pageSet, error) {
