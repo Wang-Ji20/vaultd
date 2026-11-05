@@ -1,4 +1,3 @@
-// Package vault gives safe access to an Obsidian vault on disk.
 package vault
 
 import (
