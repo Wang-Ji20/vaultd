@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en"{{with .Theme}} data-theme="{{.}}"{{end}}>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false,"defaultSettleDelay":0}'>
+<title>{{.Title}} · vaultd</title>
+<link rel="stylesheet" href="/admin/static/app.css">
+<script src="/admin/static/htmx.min.js" defer></script>
+<script src="/admin/static/app.js" defer></script>
+</head>
+<body{{with .CSRF}} hx-headers='{"X-CSRF-Token":"{{.}}"}'{{end}}>
+<svg class="icons" aria-hidden="true">
+  <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M4 18a9 9 0 1 1 16 0M12 15l4-6"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l3 3"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7h6l2 2h10v10H3z"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18a4 4 0 0 1 0-8 6 6 0 0 1 11 2 3 3 0 0 1 0 6z"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h1M3 12h1M3 18h1"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+</svg>
+{{if .Active}}
+<a class="skip" href="#main">Skip to content</a>
+<nav class="sidebar" aria-label="Main">
+  <p class="brand">vaultd</p>
+  <ul>
+    {{template "nav" dict "href" "/admin/" "icon" "i-gauge" "label" "Overview" "on" (eq .Active "overview")}}
+    {{template "nav" dict "href" "/admin/apps" "icon" "i-key" "label" "Apps & tokens" "on" (eq .Active "apps")}}
+    {{template "nav" dict "href" "/admin/vault" "icon" "i-folder" "label" "Vault" "on" (eq .Active "vault")}}
+    {{template "nav" dict "href" "/admin/upstreams" "icon" "i-cloud" "label" "Upstreams" "on" (eq .Active "upstreams")}}
+    {{template "nav" dict "href" "/admin/audit" "icon" "i-list" "label" "Audit log" "on" (eq .Active "audit")}}
+    {{template "nav" dict "href" "/admin/settings" "icon" "i-gear" "label" "Settings" "on" (eq .Active "settings")}}
+  </ul>
+  <form method="post" action="/admin/logout" class="logout">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <button class="link">Log out</button>
+  </form>
+</nav>
+{{end}}
+<main id="main" class="{{if .Active}}content{{else}}single{{end}}" tabindex="-1">
+  <h1>{{.Title}}</h1>
+  {{with .Toast}}<p class="toast" role="status">{{.}}</p>{{end}}
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{template "content" .}}
+</main>
+</body>
+</html>
+{{define "nav"}}<li><a href="{{.href}}"{{if .on}} aria-current="page"{{end}}><svg class="icon" aria-hidden="true"><use href="#{{.icon}}"/></svg>{{.label}}</a></li>{{end}}
+{{define "toggle"}}<label class="toggle"><span class="toggle-label">{{.label}}</span><input type="checkbox" role="switch" name="{{.name}}" value="1" id="{{.id}}"{{if .on}} checked{{end}}><span class="track" aria-hidden="true"></span></label>{{end}}
+{{define "status"}}{{if eq .Status "connected"}}<span class="dot ok"></span>Connected{{else if eq .Status "error"}}<span class="dot bad"></span>Error{{else if eq .Status "connecting"}}<span class="dot warn"></span>Connecting{{else}}<span class="dot idle"></span>Not used yet{{end}}{{end}}

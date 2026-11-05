@@ -14,6 +14,9 @@ import (
 	"time"
 )
 
+// StdioName is the app name recorded for calls that arrive over stdio.
+const StdioName = "stdio"
+
 // Filter selects entries. Zero values match everything.
 type Filter struct {
 	App   string

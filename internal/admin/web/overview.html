@@ -1,0 +1,40 @@
+{{define "content"}}
+<div id="live" hx-get="/admin/" hx-trigger="every 5s" hx-select="#live" hx-target="#live" hx-swap="outerHTML">
+<h2>Status</h2>
+<dl class="group">
+  <div class="row"><dt>Status</dt><dd><span class="dot ok"></span>Running</dd></div>
+  <div class="row"><dt>Version</dt><dd>{{.Version}}</dd></div>
+  <div class="row"><dt>Uptime</dt><dd>{{.Data.Uptime}}</dd></div>
+  <div class="row"><dt>Vault</dt><dd class="mono">{{.Data.VaultPath}}</dd></div>
+  <div class="row"><dt>Notes</dt><dd>{{.Data.Index.Notes}}</dd></div>
+  <div class="row"><dt>Index</dt><dd>
+    {{if .Data.Index.Indexing}}<span class="dot warn"></span>Indexing {{.Data.Index.Done}} of {{.Data.Index.Total}}
+    <progress max="100" value="{{.Data.Percent}}">{{.Data.Percent}}%</progress>
+    {{else}}<span class="dot ok"></span>Ready{{end}}</dd></div>
+</dl>
+<h2>Upstreams</h2>
+{{if .Data.Upstreams}}
+<ul class="group">
+  {{range .Data.Upstreams}}<li class="row"><span>{{.Name}}</span><span>{{template "status" .}}</span></li>{{end}}
+</ul>
+{{else}}<p class="group pad muted">No upstreams configured.</p>{{end}}
+<h2>Last tool calls</h2>
+{{with .Data.CallsErr}}<p class="error" role="alert">{{.}}</p>{{end}}
+{{if .Data.Calls}}
+<div class="group scroll"><table>
+  <thead><tr><th>Time</th><th>App</th><th>Tool</th><th>Result</th></tr></thead>
+  <tbody>{{range .Data.Calls}}<tr><td>{{when .TS}}</td><td>{{.App}}</td><td class="mono">{{.Tool}}</td><td>{{if .OK}}<span class="good">OK</span>{{else}}<span class="bad">Error</span>{{end}}</td></tr>{{end}}</tbody>
+</table></div>
+{{else}}<p class="group pad muted">No tool calls yet.</p>{{end}}
+</div>
+<h2>Restore previous config</h2>
+{{if .Data.Backups}}
+<ul class="group">
+  {{range .Data.Backups}}<li class="row"><span class="mono">{{.}}</span>
+    <form method="post" action="/admin/restore" hx-post="/admin/restore" hx-target="#main" hx-select="#main" hx-swap="outerHTML" hx-confirm="Restore this config?">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="name" value="{{.}}">
+      <button>Restore</button>
+    </form></li>{{end}}
+</ul>
+{{else}}<p class="group pad muted">No backups yet. One is made before each change.</p>{{end}}
+{{end}}
