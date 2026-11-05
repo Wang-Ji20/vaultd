@@ -5,9 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"sync"
+	"sync/atomic"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/hortensia/vaultd/internal/config"
 	"github.com/hortensia/vaultd/internal/index"
 	"github.com/hortensia/vaultd/internal/vault"
 )
@@ -25,6 +28,7 @@ const StdioApp = "stdio"
 
 // Options configures a Gateway.
 type Options struct {
+	Store   *config.Store
 	Vault   *vault.Vault
 	Index   *index.Index
 	Version string
@@ -33,10 +37,19 @@ type Options struct {
 
 // Gateway owns the MCP server and everything its tools use.
 type Gateway struct {
-	mcp   *mcp.Server
-	vault *vault.Vault
-	index *index.Index
-	log   *slog.Logger
+	mcp     *mcp.Server
+	store   *config.Store
+	vaults  atomic.Pointer[vault.Vault]
+	index   *index.Index
+	version string
+	log     *slog.Logger
+
+	draining atomic.Bool
+	inFlight atomic.Int64
+
+	indexMu     sync.Mutex
+	indexCancel context.CancelFunc // stops the running index watcher
+	indexDone   <-chan struct{}
 }
 
 // New builds a gateway with all its tools registered.
@@ -49,10 +62,15 @@ func New(opts Options) *Gateway {
 		&mcp.Implementation{Name: "vaultd", Version: opts.Version},
 		&mcp.ServerOptions{Instructions: instructions, Logger: logger},
 	)
-	g := &Gateway{mcp: server, vault: opts.Vault, index: opts.Index, log: logger}
+	g := &Gateway{mcp: server, store: opts.Store, index: opts.Index, version: opts.Version, log: logger}
+	g.vaults.Store(opts.Vault)
+	server.AddReceivingMiddleware(countCalls(&g.inFlight))
 	g.registerVaultTools()
 	return g
 }
+
+// vault returns the vault under the current config.
+func (g *Gateway) vault() *vault.Vault { return g.vaults.Load() }
 
 // RunStdio serves the tools over standard input and output until ctx ends or
 // the client disconnects.

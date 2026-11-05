@@ -35,15 +35,29 @@ func (ix *Index) Rebuild(ctx context.Context) error {
 	ix.syncMu.Lock()
 	defer ix.syncMu.Unlock()
 	ix.indexing.Store(true) // searches must not report "ready" on an empty index
+	if err := ix.clearLocked(ctx); err != nil {
+		ix.indexing.Store(false)
+		return err
+	}
+	return ix.syncLocked(ctx)
+}
+
+// Clear empties the index.
+func (ix *Index) Clear(ctx context.Context) error {
+	ix.syncMu.Lock()
+	defer ix.syncMu.Unlock()
+	return ix.clearLocked(ctx)
+}
+
+func (ix *Index) clearLocked(ctx context.Context) error {
 	err := ix.write(ctx, func(tx *sql.Tx) error {
 		_, err := tx.Exec(`DELETE FROM notes; DELETE FROM notes_fts; DELETE FROM links;`)
 		return err
 	})
 	if err != nil {
-		ix.indexing.Store(false)
 		return fmt.Errorf("clear index: %w", err)
 	}
-	return ix.syncLocked(ctx)
+	return nil
 }
 
 func (ix *Index) syncLocked(ctx context.Context) error {
@@ -86,7 +100,7 @@ func (ix *Index) knownFiles(ctx context.Context) (map[string]fileState, error) {
 // findChanges walks the vault. Afterwards, known holds only rows whose notes
 // no longer exist.
 func (ix *Index) findChanges(known map[string]fileState) (changed []string, total int, err error) {
-	err = ix.vault.WalkNotes(func(rel string, info fs.FileInfo) error {
+	err = ix.vault().WalkNotes(func(rel string, info fs.FileInfo) error {
 		total++
 		state, seen := known[rel]
 		delete(known, rel)
@@ -106,7 +120,7 @@ func (ix *Index) indexBatches(ctx context.Context, paths []string) error {
 				if err := ctx.Err(); err != nil {
 					return err
 				}
-				if err := indexNote(tx, ix.vault, rel); err != nil {
+				if err := indexNote(tx, ix.vault(), rel); err != nil {
 					return err
 				}
 			}
@@ -135,7 +149,7 @@ func (ix *Index) deleteMissing(ctx context.Context, missing map[string]fileState
 // gone or no longer allowed is removed.
 func (ix *Index) IndexPath(ctx context.Context, rel string) error {
 	return ix.write(ctx, func(tx *sql.Tx) error {
-		return indexNote(tx, ix.vault, rel)
+		return indexNote(tx, ix.vault(), rel)
 	})
 }
 

@@ -29,7 +29,9 @@ Any command accepts `--config <path>` to use another file.
 ## Run
 
 ```
+vaultd run             # serve all apps at http://127.0.0.1:8765/mcp
 vaultd run --stdio     # serve one app over standard input and output
+vaultd token new NAME  # create a token for an app and print it once
 vaultd reindex         # rebuild the search index from scratch
 vaultd version
 ```
@@ -41,6 +43,37 @@ time; vaultd builds it again on the next start. While it is being built,
 On Linux, each vault folder uses one system "inotify" watch. If a very large vault
 reaches the limit, vaultd logs a warning and changes there appear only after a
 restart. Raise `fs.inotify.max_user_watches` to fix this.
+
+Changes to `config.toml` apply without a restart, except `server.listen`. If a change
+is invalid, vaultd logs an error and keeps using the last good config.
+
+`GET /health` answers `{"status":"ok","version":"..."}` without a token.
+
+## Connect an app over HTTP
+
+Create a token, then give the app the address and the token:
+
+```
+vaultd token new cursor
+```
+
+```json
+{
+  "mcpServers": {
+    "vaultd": {
+      "url": "http://127.0.0.1:8765/mcp",
+      "headers": { "Authorization": "Bearer vd_..." }
+    }
+  }
+}
+```
+
+Use the address exactly as `server.listen` has it. vaultd refuses any other `Host`, so
+`http://localhost:8765` is refused when `listen` says `127.0.0.1`. This blocks an attack
+called [DNS rebinding](glossary.md).
+
+`token new` refuses a name that already has a token. To replace a token, remove the
+app's entry from `config.toml` and create it again.
 
 ## Connect an app over stdio
 

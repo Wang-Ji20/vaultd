@@ -4,10 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -116,6 +120,94 @@ func TestReindex(t *testing.T) {
 	if !strings.Contains(stdout.String(), "indexed 1 notes") {
 		t.Fatalf("got %q", stdout.String())
 	}
+}
+
+// Runs the real program: a token created with the CLI works on the running
+// server without a restart, and the server stops cleanly.
+func TestHTTPEndToEnd(t *testing.T) {
+	vaultDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(vaultDir, "note.md"), []byte("# Note\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	probe, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := probe.Addr().String()
+	probe.Close()
+	configPath := filepath.Join(t.TempDir(), "config.toml")
+	body := "[server]\nlisten = \"" + addr + "\"\n[vault]\npath = \"" + strings.ReplaceAll(vaultDir, `\`, `/`) + "\"\n"
+	if err := os.WriteFile(configPath, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := selfCommand(t, "run", "--config", configPath)
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	finished := make(chan error, 1)
+	go func() { finished <- cmd.Wait() }()
+	defer cmd.Process.Kill()
+	waitForHealth(t, addr)
+
+	var stdout, stderr bytes.Buffer
+	if err := dispatch([]string{"token", "new", "--config", configPath, "my-app"}, &stdout, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	token := strings.TrimSpace(stdout.String())
+	if !waitForAccepted(addr, token) {
+		t.Fatal("new token was not picked up")
+	}
+	if saved, _ := os.ReadFile(configPath); strings.Contains(string(saved), token) {
+		t.Error("the plain token must never be stored")
+	}
+	if err := dispatch([]string{"token", "new", "--config", configPath, "my-app"}, &stdout, &stderr); err == nil {
+		t.Error("a second token for one app must be refused")
+	}
+
+	if runtime.GOOS == "windows" {
+		return // this signal does not exist there; the service stop is tested by hand
+	}
+	if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-finished:
+		if err != nil {
+			t.Errorf("exit: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Error("did not stop on SIGTERM")
+	}
+}
+
+func waitForHealth(t *testing.T, addr string) {
+	t.Helper()
+	for range 500 {
+		if res, err := http.Get("http://" + addr + "/health"); err == nil {
+			res.Body.Close()
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("server did not start")
+}
+
+func waitForAccepted(addr, token string) bool {
+	for range 300 {
+		req, _ := http.NewRequest("POST", "http://"+addr+"/mcp", strings.NewReader("{}"))
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		if res, err := http.DefaultClient.Do(req); err == nil {
+			res.Body.Close()
+			if res.StatusCode != http.StatusUnauthorized {
+				return true
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return false
 }
 
 func TestVersionAndUnknownCommand(t *testing.T) {

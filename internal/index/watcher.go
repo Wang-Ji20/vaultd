@@ -83,12 +83,12 @@ func (w *watch) run(ctx context.Context) {
 // onEvent records the path for later. A new folder is watched at once, so that
 // files created in it straight away are not missed.
 func (w *watch) onEvent(event fsnotify.Event) {
-	if _, visible := w.ix.vault.Rel(event.Name); !visible {
+	if _, visible := w.ix.vault().Rel(event.Name); !visible {
 		return
 	}
 	if event.Has(fsnotify.Create) {
 		if info, err := os.Lstat(event.Name); err == nil && info.IsDir() {
-			if rel, ok := w.ix.vault.Rel(event.Name); ok {
+			if rel, ok := w.ix.vault().Rel(event.Name); ok {
 				w.addTree(rel)
 			}
 		}
@@ -121,7 +121,7 @@ func (w *watch) processDue(ctx context.Context, now time.Time) {
 // handles every editor's save pattern alike: write in place, rename over, and
 // delete then create.
 func (w *watch) process(ctx context.Context, abs string) error {
-	rel, ok := w.ix.vault.Rel(abs)
+	rel, ok := w.ix.vault().Rel(abs)
 	if !ok {
 		return nil
 	}
@@ -140,7 +140,7 @@ func (w *watch) process(ctx context.Context, abs string) error {
 // the system's watch limit may be reached on huge vaults, and search still
 // works, though it may lag until the next start.
 func (w *watch) addTree(rel string) {
-	err := w.ix.vault.WalkFolders(rel, func(abs string) error {
+	err := w.ix.vault().WalkFolders(rel, func(abs string) error {
 		if err := w.fs.Add(abs); err != nil {
 			w.log.Warn("cannot watch folder; changes in it may not appear until restart", "error", err)
 		}

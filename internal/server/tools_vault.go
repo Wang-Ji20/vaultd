@@ -67,17 +67,17 @@ func (g *Gateway) search(ctx context.Context, _ string, in searchInput) (searchO
 }
 
 func (g *Gateway) read(_ context.Context, _ string, in readInput) (*vault.Note, error) {
-	return g.vault.Read(in.Path)
+	return g.vault().Read(in.Path)
 }
 
 func (g *Gateway) list(_ context.Context, _ string, in listInput) (*vault.Listing, error) {
-	return g.vault.List(in.Folder)
+	return g.vault().List(in.Folder)
 }
 
 func (g *Gateway) recent(_ context.Context, _ string, in recentInput) (recentOutput, error) {
 	days := clampLimit(in.Days, recentDefaultDays, recentMaxDays)
 	limit := clampLimit(in.Limit, recentDefaultLimit, recentMaxLimit)
-	notes, err := g.vault.Recent(days, limit, time.Now())
+	notes, err := g.vault().Recent(days, limit, time.Now())
 	if err != nil {
 		return recentOutput{}, err
 	}
@@ -85,7 +85,7 @@ func (g *Gateway) recent(_ context.Context, _ string, in recentInput) (recentOut
 }
 
 func (g *Gateway) backlinks(ctx context.Context, _ string, in readInput) (backlinksOutput, error) {
-	info, err := g.vault.Describe(in.Path) // the jail, and a clear error if missing
+	info, err := g.vault().Describe(in.Path) // the jail, and a clear error if missing
 	if err != nil {
 		return backlinksOutput{}, err
 	}

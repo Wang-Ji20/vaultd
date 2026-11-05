@@ -11,6 +11,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/hortensia/vaultd/internal/config"
 	"github.com/hortensia/vaultd/internal/index"
 	"github.com/hortensia/vaultd/internal/vault"
 )
@@ -44,13 +45,30 @@ func connect(t *testing.T, g *Gateway) *mcp.ClientSession {
 	return session
 }
 
+// newTestStore writes a config for a vault at root. Extra TOML goes at the end.
+func newTestStore(t *testing.T, root, extra string) *config.Store {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "config.toml")
+	body := "[server]\nlisten = \"127.0.0.1:0\"\n[vault]\npath = \"" + strings.ReplaceAll(root, `\`, `/`) + "\"\n" +
+		"ignore = [\".git\"]\n" + extra
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := config.OpenStore(path, filepath.Join(t.TempDir(), "backups"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return store
+}
+
 func newTestGateway(t *testing.T) (*Gateway, string) {
 	t.Helper()
 	root := t.TempDir()
 	writeNote(t, root, "hello.md", "# Hello\nwombats are great\n")
 	writeNote(t, root, "sub/other.md", "# Other\nnothing here, see [[hello]]\n")
 	writeNote(t, root, ".git/secret.md", "wombats secret\n")
-	v, err := vault.New(vault.Options{Root: root, Ignore: []string{".git"}})
+	store := newTestStore(t, root, "")
+	v, err := vault.New(VaultOptions(store.Get()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +80,7 @@ func newTestGateway(t *testing.T) (*Gateway, string) {
 	if err := ix.Sync(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	return New(Options{Vault: v, Index: ix, Version: "test"}), root
+	return New(Options{Store: store, Vault: v, Index: ix, Version: "test"}), root
 }
 
 // call returns a tool's JSON text and whether it reported an error.

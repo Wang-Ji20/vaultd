@@ -28,8 +28,8 @@ CREATE INDEX links_dst ON links(dst);
 
 // Index is the search index of one vault. It is safe for concurrent use.
 type Index struct {
-	db    *sql.DB
-	vault *vault.Vault
+	db     *sql.DB
+	vaults atomic.Pointer[vault.Vault]
 
 	writeMu sync.Mutex // one writer at a time inside this process
 	syncMu  sync.Mutex // one full sync at a time
@@ -53,7 +53,9 @@ func Open(dbPath string, v *vault.Vault) (*Index, error) {
 		db.Close()
 		return nil, err
 	}
-	return &Index{db: db, vault: v}, nil
+	ix := &Index{db: db}
+	ix.vaults.Store(v)
+	return ix, nil
 }
 
 // dsn turns on write-ahead logging, so searches keep working during indexing,
@@ -96,6 +98,12 @@ func createSchema(db *sql.DB) error {
 	}
 	return tx.Commit()
 }
+
+// SetVault points the index at a vault with other settings. Stop the watcher
+// first, then start it again and let it sync.
+func (ix *Index) SetVault(v *vault.Vault) { ix.vaults.Store(v) }
+
+func (ix *Index) vault() *vault.Vault { return ix.vaults.Load() }
 
 // Close closes the database.
 func (ix *Index) Close() error { return ix.db.Close() }

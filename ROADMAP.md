@@ -6,7 +6,7 @@ The long-term plan. Current work is tracked in [PLAN.md](PLAN.md).
 
 - [x] Read-only vault over stdio
 - [x] Real search
-- [ ] Shared HTTP endpoint with per-app tokens
+- [x] Shared HTTP endpoint with per-app tokens
 - [ ] Safe writes
 - [ ] Upstream proxy and audit log
 - [ ] Admin portal

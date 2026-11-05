@@ -3,18 +3,20 @@
 vaultd is one program. Apps talk to it, and it talks to the vault.
 
 ```
-AI app --stdio--> MCP server --> tool functions --> path jail --> .md files
-                  (internal/server)   |             (internal/vault)    |
-                                      v                                 | changes
-                                 search index <---- file watcher <------+
-                                 (internal/index)
+AI app --HTTP--> Host check --> token check --+
+                                              v
+AI app --stdio--------------------------> MCP server --> tool functions --> path jail --> .md files
+                                          (internal/server)   |             (internal/vault)    |
+                                                              v                                 | changes
+                                                         search index <---- file watcher <------+
+                                                         (internal/index)
 ```
 
 | Package           | Job                                                  |
 |-------------------|------------------------------------------------------|
 | `cmd/vaultd`      | The command line                                     |
-| `internal/config` | Load and validate `config.toml`                      |
-| `internal/server` | Expose tools over MCP                                |
+| `internal/config` | Load, validate, save and hot reload `config.toml`    |
+| `internal/server` | Expose tools over HTTP and stdio; check tokens       |
 | `internal/vault`  | Path jail, note parsing, reading files               |
 | `internal/index`  | Full-text search index and file watcher              |
 
@@ -28,6 +30,7 @@ so no tool can forget them.
 - [Note parsing](design/parsing.md)
 - [The path jail](design/path-jail.md)
 - [The search index](design/search-index.md)
+- [The HTTP endpoint](design/endpoint.md)
 
 ## Performance
 

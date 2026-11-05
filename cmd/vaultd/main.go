@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"syscall"
 
 	"github.com/hortensia/vaultd/internal/config"
@@ -25,9 +26,10 @@ var version = "dev"
 
 const usage = `usage: vaultd <command>
 
-  run [--config path] --stdio   serve the tools over standard input and output
-  reindex [--config path]       rebuild the search index from scratch
-  version                       print the version
+  run [--config path] [--stdio]    run the gateway in the foreground
+  token new [--config path] <app>  create an app token and print it once
+  reindex [--config path]          rebuild the search index from scratch
+  version                          print the version
 `
 
 func main() {
@@ -45,6 +47,8 @@ func dispatch(args []string, stdout, stderr io.Writer) error {
 	switch args[0] {
 	case "run":
 		return runCommand(args[1:], stderr)
+	case "token":
+		return tokenCommand(args[1:], stdout, stderr)
 	case "reindex":
 		return reindexCommand(args[1:], stdout, stderr)
 	case "version":
@@ -63,31 +67,35 @@ func runCommand(args []string, stderr io.Writer) error {
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if !*stdio {
-		return errors.New("only --stdio is available so far")
-	}
-	cfg, err := loadConfig(*configPath)
+	store, err := openStore(*configPath)
 	if err != nil {
 		return err
 	}
 	// Stdout belongs to the MCP protocol in stdio mode, so logs go to stderr.
 	logger := slog.New(slog.NewTextHandler(stderr, nil))
-	v, ix, err := openVault(cfg)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return serve(ctx, store, *stdio, logger)
+}
+
+// serve runs the gateway until ctx ends, then closes everything in order.
+func serve(ctx context.Context, store *config.Store, stdio bool, logger *slog.Logger) error {
+	v, ix, err := openVault(store.Get())
 	if err != nil {
 		return err
 	}
 	defer ix.Close()
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	indexDone, err := ix.Start(ctx, logger)
-	if err != nil {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	gateway := server.New(server.Options{Store: store, Vault: v, Index: ix, Version: version, Logger: logger})
+	if err := gateway.Start(ctx); err != nil {
 		return err
 	}
-	gateway := server.New(server.Options{Vault: v, Index: ix, Version: version, Logger: logger})
-	err = gateway.RunStdio(ctx)
-	stop()
-	<-indexDone
-	return err
+	defer gateway.Wait()
+	if stdio {
+		return gateway.RunStdio(ctx)
+	}
+	return gateway.Serve(ctx, nil)
 }
 
 func reindexCommand(args []string, stdout, stderr io.Writer) error {
@@ -97,11 +105,11 @@ func reindexCommand(args []string, stdout, stderr io.Writer) error {
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	cfg, err := loadConfig(*configPath)
+	store, err := openStore(*configPath)
 	if err != nil {
 		return err
 	}
-	_, ix, err := openVault(cfg)
+	_, ix, err := openVault(store.Get())
 	if err != nil {
 		return err
 	}
@@ -113,8 +121,46 @@ func reindexCommand(args []string, stdout, stderr io.Writer) error {
 	return nil
 }
 
+func tokenCommand(args []string, stdout, stderr io.Writer) error {
+	if len(args) == 0 || args[0] != "new" {
+		return errors.New("usage: vaultd token new [--config path] <app-name>")
+	}
+	flags := flag.NewFlagSet("token new", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	configPath := flags.String("config", "", "path to config.toml")
+	if err := flags.Parse(args[1:]); err != nil {
+		return err
+	}
+	if flags.NArg() != 1 {
+		return errors.New("usage: vaultd token new [--config path] <app-name>")
+	}
+	store, err := openStore(*configPath)
+	if err != nil {
+		return err
+	}
+	token, err := addApp(store, flags.Arg(0))
+	if err != nil {
+		return err
+	}
+	fmt.Fprintln(stdout, token)
+	fmt.Fprintln(stderr, "Save this token now: it cannot be shown again.")
+	return nil
+}
+
+func addApp(store *config.Store, name string) (string, error) {
+	token, hash := config.NewToken()
+	err := store.Update(func(c *config.Config) error {
+		if slices.ContainsFunc(c.Apps, func(app config.App) bool { return app.Name == name }) {
+			return fmt.Errorf("app %q already has a token", name)
+		}
+		c.Apps = append(c.Apps, config.App{Name: name, TokenSHA256: hash})
+		return nil
+	})
+	return token, err
+}
+
 func openVault(cfg *config.Config) (*vault.Vault, *index.Index, error) {
-	v, err := vault.New(vault.Options{Root: cfg.Vault.Path, Ignore: cfg.Vault.Ignore})
+	v, err := vault.New(server.VaultOptions(cfg))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -129,12 +175,16 @@ func openVault(cfg *config.Config) (*vault.Vault, *index.Index, error) {
 	return v, ix, nil
 }
 
-func loadConfig(path string) (*config.Config, error) {
+func openStore(path string) (*config.Store, error) {
 	if path == "" {
 		var err error
 		if path, err = config.DefaultPath(); err != nil {
 			return nil, err
 		}
 	}
-	return config.Load(path)
+	dataDir, err := config.DefaultDataDir()
+	if err != nil {
+		return nil, err
+	}
+	return config.OpenStore(path, dataDir)
 }
