@@ -68,6 +68,12 @@ func newTestGateway(t *testing.T) (*Gateway, string) {
 	writeNote(t, root, "sub/other.md", "# Other\nnothing here, see [[hello]]\n")
 	writeNote(t, root, ".git/secret.md", "wombats secret\n")
 	store := newTestStore(t, root, "")
+	if err := store.Update(func(c *config.Config) error {
+		c.Vault.WritableFolders = []string{"AI"}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
 	v, err := vault.New(VaultOptions(store.Get()))
 	if err != nil {
 		t.Fatal(err)
@@ -128,7 +134,7 @@ func TestVaultReadListSearch(t *testing.T) {
 		t.Errorf("read: %+v", note)
 	}
 	list := callJSON[vault.Listing](t, s, "vault.list", map[string]any{})
-	if !slices.Equal(list.Folders, []string{"sub"}) || len(list.Notes) != 1 {
+	if !slices.Equal(list.Folders, []string{"AI", "sub"}) || len(list.Notes) != 1 {
 		t.Errorf("list: %+v", list)
 	}
 	found := callJSON[searchOutput](t, s, "vault.search", map[string]any{"query": "wombats"})
@@ -148,6 +154,80 @@ func TestVaultRecentBacklinks(t *testing.T) {
 	if len(links.Backlinks) != 1 || links.Backlinks[0].Path != "sub/other.md" || links.Backlinks[0].Title != "Other" ||
 		!strings.Contains(links.Backlinks[0].Context, "[[hello]]") {
 		t.Errorf("backlinks: %+v", links)
+	}
+}
+
+func TestWriteTools(t *testing.T) {
+	g, root := newTestGateway(t)
+	s := connect(t, g)
+
+	created := callJSON[createOutput](t, s, "vault.create", map[string]any{"path": "AI/new.md", "content": "# New\nfirstword\n"})
+	if created.Path != "AI/new.md" {
+		t.Errorf("create: %+v", created)
+	}
+	appended := callJSON[vault.AppendResult](t, s, "vault.append", map[string]any{"path": "AI/new.md", "text": "secondword"})
+	if appended.Path != "AI/new.md" || appended.BytesWritten == 0 {
+		t.Errorf("append: %+v", appended)
+	}
+	raw, err := os.ReadFile(filepath.Join(root, "AI", "new.md"))
+	if err != nil || !strings.Contains(string(raw), "stdio -->\nsecondword\n") {
+		t.Errorf("the app name goes in the marker: %q %v", raw, err)
+	}
+
+	// What was just written is searchable at once, with no watcher running.
+	found := callJSON[searchOutput](t, s, "vault.search", map[string]any{"query": "secondword"})
+	if len(found.Results) != 1 {
+		t.Errorf("search after write: %+v", found)
+	}
+
+	callJSON[vault.AppendResult](t, s, "memory.remember", map[string]any{"text": "likes wombats"})
+	callJSON[vault.AppendResult](t, s, "memory.remember", map[string]any{"text": "likes numbats"})
+	recalled := callJSON[recallOutput](t, s, "memory.recall", map[string]any{"query": "numbats"})
+	if len(recalled.Lines) != 1 || !strings.HasSuffix(recalled.Lines[0], "(stdio) likes numbats") {
+		t.Errorf("recall: %+v", recalled)
+	}
+}
+
+func TestWriteRefusals(t *testing.T) {
+	g, root := newTestGateway(t)
+	s := connect(t, g)
+	cases := []struct {
+		tool string
+		args map[string]any
+		want string
+	}{
+		{"vault.append", map[string]any{"path": "hello.md", "text": "x"}, "writable"},
+		{"vault.create", map[string]any{"path": "elsewhere.md", "content": "x"}, "writable"},
+		{"vault.append", map[string]any{"path": "AI/../../x.md", "text": "x"}, "outside the vault"},
+		{"vault.create", map[string]any{"path": "AI/.git/x.md", "content": "x"}, "ignored"},
+		{"vault.append", map[string]any{"path": "AI/x.txt", "text": "x"}, "only .md"},
+		{"memory.recall", map[string]any{"query": " "}, "empty"},
+		{"memory.remember", map[string]any{"text": " "}, "empty"},
+	}
+	for _, tc := range cases {
+		text, isErr := call(t, s, tc.tool, tc.args)
+		if !isErr || !strings.Contains(text, tc.want) || strings.Contains(text, root) {
+			t.Errorf("%s %v: error=%v %q", tc.tool, tc.args, isErr, text)
+		}
+	}
+	callJSON[createOutput](t, s, "vault.create", map[string]any{"path": "AI/once.md", "content": "x"})
+	if text, isErr := call(t, s, "vault.create", map[string]any{"path": "AI/once.md", "content": "y"}); !isErr || !strings.Contains(text, "already exists") {
+		t.Errorf("overwrite: %v %q", isErr, text)
+	}
+}
+
+func TestNoDestructiveToolExists(t *testing.T) {
+	g, _ := newTestGateway(t)
+	res, err := connect(t, g).ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tool := range res.Tools {
+		for _, word := range []string{"delete", "remove", "overwrite", "rename", "move", "write"} {
+			if strings.Contains(strings.ToLower(tool.Name), word) {
+				t.Errorf("tool %s looks destructive", tool.Name)
+			}
+		}
 	}
 }
 

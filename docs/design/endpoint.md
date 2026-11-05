@@ -49,7 +49,8 @@ time limit. vaultd stops in stages instead:
 | Setting changed       | Effect                                          |
 |-----------------------|-------------------------------------------------|
 | `apps`                | Next request                                    |
-| `vault.path`, `ignore` | Index is cleared and rebuilt, watcher restarted |
+| `vault.writable_folders`, `git_autocommit` | Next write                |
+| `vault.path`, `ignore`, `memory_file` | Index is cleared and rebuilt, watcher restarted |
 | `server.listen`       | Logged; needs a restart                         |
 
 The index is cleared rather than synced, so a folder that was just added to `ignore`

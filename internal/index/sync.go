@@ -51,7 +51,7 @@ func (ix *Index) Clear(ctx context.Context) error {
 
 func (ix *Index) clearLocked(ctx context.Context) error {
 	err := ix.write(ctx, func(tx *sql.Tx) error {
-		_, err := tx.Exec(`DELETE FROM notes; DELETE FROM notes_fts; DELETE FROM links;`)
+		_, err := tx.Exec(`DELETE FROM notes; DELETE FROM notes_fts; DELETE FROM links; DELETE FROM memory_fts;`)
 		return err
 	})
 	if err != nil {
@@ -136,8 +136,9 @@ func (ix *Index) indexBatches(ctx context.Context, paths []string) error {
 
 func (ix *Index) deleteMissing(ctx context.Context, missing map[string]fileState) error {
 	return ix.write(ctx, func(tx *sql.Tx) error {
+		v := ix.vault()
 		for rel := range missing {
-			if err := removeNote(tx, rel); err != nil {
+			if err := removeNote(tx, v, rel); err != nil {
 				return fmt.Errorf("remove %q from index: %w", rel, err)
 			}
 		}
@@ -173,8 +174,9 @@ func (ix *Index) RemoveTree(ctx context.Context, rel string) error {
 		if err := rows.Err(); err != nil {
 			return err
 		}
+		v := ix.vault()
 		for _, p := range paths {
-			if err := removeNote(tx, p); err != nil {
+			if err := removeNote(tx, v, p); err != nil {
 				return err
 			}
 		}
@@ -187,7 +189,7 @@ func (ix *Index) RemoveTree(ctx context.Context, rel string) error {
 func indexNote(tx *sql.Tx, v *vault.Vault, rel string) error {
 	raw, info, err := v.ReadRaw(rel, vault.MaxReadSize)
 	if err != nil {
-		return removeNote(tx, rel)
+		return removeNote(tx, v, rel)
 	}
 	hash := hashOf(raw, info)
 	var oldHash string
@@ -200,10 +202,30 @@ func indexNote(tx *sql.Tx, v *vault.Vault, rel string) error {
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
-	if err := removeNote(tx, rel); err != nil {
+	if err := removeNote(tx, v, rel); err != nil {
 		return err
 	}
+	if rel == v.MemoryFile() {
+		if err := insertMemoryLines(tx, raw); err != nil {
+			return err
+		}
+	}
 	return insertNote(tx, rel, raw, info, hash)
+}
+
+// insertMemoryLines stores the memory note line by line, so that memory.recall
+// can return single memories instead of the whole file.
+func insertMemoryLines(tx *sql.Tx, raw []byte) error {
+	for _, line := range strings.Split(string(raw), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if _, err := tx.Exec(`INSERT INTO memory_fts (line) VALUES (?)`, line); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // hashOf hashes the content. Oversized notes are not read, so their size and
@@ -246,7 +268,12 @@ func insertNote(tx *sql.Tx, rel string, raw []byte, info fs.FileInfo, hash strin
 	return nil
 }
 
-func removeNote(tx *sql.Tx, rel string) error {
+func removeNote(tx *sql.Tx, v *vault.Vault, rel string) error {
+	if rel == v.MemoryFile() {
+		if _, err := tx.Exec(`DELETE FROM memory_fts`); err != nil {
+			return err
+		}
+	}
 	var rowid int64
 	err := tx.QueryRow(`SELECT rowid FROM notes WHERE path = ?`, rel).Scan(&rowid)
 	if errors.Is(err, sql.ErrNoRows) {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -50,7 +51,7 @@ func startServer(t *testing.T) (*testServer, map[string]string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gateway := New(Options{Store: store, Vault: v, Index: ix, Version: testVersion})
+	gateway := New(Options{Store: store, Vault: v, Index: ix, Version: testVersion, Logger: slog.New(slog.DiscardHandler)})
 	ctx, cancel := context.WithCancel(context.Background())
 	if err := gateway.Start(ctx); err != nil {
 		t.Fatal(err)
@@ -165,6 +166,24 @@ func TestHostHeaderChecked(t *testing.T) {
 				t.Errorf("host %q route %s: got %d", host, route, code)
 			}
 		}
+	}
+}
+
+func TestWritablePolicyHotReload(t *testing.T) {
+	srv, tokens := startServer(t)
+	session := connectHTTP(t, srv.addr, tokens["app-a"])
+	if _, isErr := call(t, session, "vault.create", map[string]any{"path": "Later/a.md", "content": "x"}); !isErr {
+		t.Fatal("not writable yet")
+	}
+	err := srv.store.Update(func(c *config.Config) error {
+		c.Vault.WritableFolders = []string{"Later"}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text, isErr := call(t, session, "vault.create", map[string]any{"path": "Later/a.md", "content": "x"}); isErr {
+		t.Fatalf("writable now: %s", text)
 	}
 }
 

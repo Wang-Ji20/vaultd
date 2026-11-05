@@ -71,6 +71,28 @@ func (ix *Index) Search(ctx context.Context, text string, limit int, folder stri
 	return hits, nil
 }
 
+// Recall returns lines of the memory file that match plain text, best first.
+func (ix *Index) Recall(ctx context.Context, text string, limit int) ([]string, error) {
+	query := EscapeQuery(text)
+	if query == "" {
+		return nil, errors.New("query must not be empty")
+	}
+	rows, err := ix.db.QueryContext(ctx, `SELECT line FROM memory_fts WHERE memory_fts MATCH ? ORDER BY rank LIMIT ?`, query, limit)
+	if err != nil {
+		return nil, fmt.Errorf("recall failed: %w", err)
+	}
+	defer rows.Close()
+	lines := []string{}
+	for rows.Next() {
+		var line string
+		if err := rows.Scan(&line); err != nil {
+			return nil, fmt.Errorf("recall failed: %w", err)
+		}
+		lines = append(lines, line)
+	}
+	return lines, rows.Err()
+}
+
 // Backlink is a note that links to another.
 type Backlink struct {
 	Path    string `json:"path"`

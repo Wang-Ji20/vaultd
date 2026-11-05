@@ -73,6 +73,13 @@ The other way would store the resolved note. But then creating a new `Note.md` w
 a shorter path would change what old links mean, and every linking note would need
 reindexing.
 
+## Memory lines
+
+`memory.recall` must return single memories, but `notes_fts` stores whole files. So the
+memory file also gets a table of its own, `memory_fts`, with one row per line. The spec's
+schema does not list this table. It is the smallest way to get a full-text search that is
+"restricted to memory file lines". The table is replaced whenever the file changes.
+
 ## Notes over 1 MB
 
 These are listed by name but their text is not read, the same limit as `vault.read`.

@@ -17,7 +17,7 @@ AI app --stdio--------------------------> MCP server --> tool functions --> path
 | `cmd/vaultd`      | The command line                                     |
 | `internal/config` | Load, validate, save and hot reload `config.toml`    |
 | `internal/server` | Expose tools over HTTP and stdio; check tokens       |
-| `internal/vault`  | Path jail, note parsing, reading files               |
+| `internal/vault`  | Path jail, note parsing, reading and safe writing    |
 | `internal/index`  | Full-text search index and file watcher              |
 
 A tool function does little itself. It checks limits, calls the vault package and
@@ -31,6 +31,7 @@ so no tool can forget them.
 - [The path jail](design/path-jail.md)
 - [The search index](design/search-index.md)
 - [The HTTP endpoint](design/endpoint.md)
+- [Safe writes](design/writes.md)
 
 ## Performance
 

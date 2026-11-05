@@ -96,8 +96,23 @@ For Claude Desktop, add this to `claude_desktop_config.json`:
 | `vault.list`   | List the folders and notes directly inside a folder |
 | `vault.recent` | List recently modified notes, newest first         |
 | `vault.backlinks` | List the notes linking to a note                |
+| `vault.append` | Add text to a note, creating it if missing         |
+| `vault.create` | Create a new note; fails if the path is taken      |
+| `memory.remember` | Add one dated line to the memory file           |
+| `memory.recall` | Search the memory file, line by line              |
 
 `vault.read` returns the frontmatter separately, so `content` does not repeat it.
+
+Writes only work inside `vault.writable_folders`. There is no tool to delete or
+overwrite a note. The memory file must be inside a writable folder for
+`memory.remember` to work.
+
+### Git
+
+If `vault.git_autocommit` is on and the vault is a git repository, each write becomes
+one commit, such as `vaultd: vault.append AI/log.md (cursor)`. Only that file is
+committed: anything else you have staged stays staged. If a commit fails, for example
+because git has no `user.name`, the write still counts and vaultd logs a warning.
 
 ## Test
 

@@ -73,6 +73,7 @@ func runCommand(args []string, stderr io.Writer) error {
 	}
 	// Stdout belongs to the MCP protocol in stdio mode, so logs go to stderr.
 	logger := slog.New(slog.NewTextHandler(stderr, nil))
+	slog.SetDefault(logger)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return serve(ctx, store, *stdio, logger)

@@ -16,7 +16,7 @@ import (
 	"github.com/hortensia/vaultd/internal/vault"
 )
 
-const schemaVersion = 1
+const schemaVersion = 2
 
 const schema = `
 CREATE TABLE notes (path TEXT PRIMARY KEY, title TEXT, tags TEXT, mtime INTEGER, size INTEGER, hash TEXT);
@@ -24,6 +24,7 @@ CREATE VIRTUAL TABLE notes_fts USING fts5(path UNINDEXED, title, tags, body, tok
 CREATE TABLE links (src TEXT, dst TEXT, line TEXT);
 CREATE INDEX links_src ON links(src);
 CREATE INDEX links_dst ON links(dst);
+CREATE VIRTUAL TABLE memory_fts USING fts5(line, tokenize = 'unicode61 remove_diacritics 2');
 `
 
 // Index is the search index of one vault. It is safe for concurrent use.
@@ -91,7 +92,7 @@ func createSchema(db *sql.DB) error {
 		return fmt.Errorf("create index: %w", err)
 	}
 	defer tx.Rollback()
-	statements := "DROP TABLE IF EXISTS notes; DROP TABLE IF EXISTS notes_fts; DROP TABLE IF EXISTS links;" +
+	statements := "DROP TABLE IF EXISTS notes; DROP TABLE IF EXISTS notes_fts; DROP TABLE IF EXISTS links; DROP TABLE IF EXISTS memory_fts;" +
 		schema + fmt.Sprintf("PRAGMA user_version = %d;", schemaVersion)
 	if _, err := tx.Exec(statements); err != nil {
 		return fmt.Errorf("create index: %w", err)

@@ -329,6 +329,67 @@ func TestBacklinksFollowNewBetterMatch(t *testing.T) {
 	}
 }
 
+func TestRecall(t *testing.T) {
+	root := t.TempDir()
+	put(t, root, "AI/memory.md", "- likes wombats\r\n- likes numbats\n\n- hates spiders\n")
+	put(t, root, "other.md", "- likes wombats elsewhere\n")
+	v, err := vault.New(vault.Options{Root: root, MemoryFile: "AI/memory.md"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ix, err := Open(filepath.Join(t.TempDir(), "index.db"), v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ix.Close()
+	if err := ix.Sync(ctx); err != nil {
+		t.Fatal(err)
+	}
+	recall := func(text string, limit int) string {
+		t.Helper()
+		lines, err := ix.Recall(ctx, text, limit)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strings.Join(lines, "|")
+	}
+	if got := recall("wombats", 10); got != "- likes wombats" {
+		t.Errorf("only the memory file, line by line: %q", got)
+	}
+	if got := strings.Count(recall("likes", 1), "likes"); got != 1 {
+		t.Errorf("limit: %d", got)
+	}
+	if _, err := ix.Recall(ctx, " ", 10); err == nil {
+		t.Error("empty query must fail")
+	}
+
+	// Editing replaces the lines rather than adding to them.
+	put(t, root, "AI/memory.md", "- likes wombats a lot\n")
+	if err := ix.IndexPath(ctx, "AI/memory.md"); err != nil {
+		t.Fatal(err)
+	}
+	if got := recall("wombats", 10); got != "- likes wombats a lot" {
+		t.Errorf("after edit: %q", got)
+	}
+
+	if err := ix.Rebuild(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := recall("wombats", 10); got != "- likes wombats a lot" {
+		t.Errorf("after rebuild: %q", got)
+	}
+
+	if err := os.Remove(filepath.Join(root, "AI", "memory.md")); err != nil {
+		t.Fatal(err)
+	}
+	if err := ix.IndexPath(ctx, "AI/memory.md"); err != nil {
+		t.Fatal(err)
+	}
+	if got := recall("wombats", 10); got != "" {
+		t.Errorf("after delete: %q", got)
+	}
+}
+
 func TestLinkCandidates(t *testing.T) {
 	got := strings.Join(linkCandidates("A/B/Note.md"), ",")
 	if got != "a/b/note,b/note,note" {

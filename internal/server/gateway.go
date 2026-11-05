@@ -66,6 +66,7 @@ func New(opts Options) *Gateway {
 	g.vaults.Store(opts.Vault)
 	server.AddReceivingMiddleware(countCalls(&g.inFlight))
 	g.registerVaultTools()
+	g.registerWriteTools()
 	return g
 }
 

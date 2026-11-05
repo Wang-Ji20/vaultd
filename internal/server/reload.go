@@ -10,7 +10,13 @@ import (
 
 // VaultOptions derives the vault's settings from a config.
 func VaultOptions(cfg *config.Config) vault.Options {
-	return vault.Options{Root: cfg.Vault.Path, Ignore: cfg.Vault.Ignore}
+	return vault.Options{
+		Root:          cfg.Vault.Path,
+		Ignore:        cfg.Vault.Ignore,
+		Writable:      cfg.Vault.WritableFolders,
+		MemoryFile:    cfg.Vault.MemoryFile,
+		GitAutocommit: cfg.Vault.GitAutocommit,
+	}
 }
 
 // Start begins indexing and applies config changes until ctx ends. Stop it by
@@ -57,22 +63,29 @@ func (g *Gateway) applyConfig(ctx context.Context, old, updated *config.Config) 
 	if old.Server.Listen != updated.Server.Listen {
 		g.log.Warn("server.listen changed; restart vaultd to apply it")
 	}
-	if !vaultChanged(old, updated) {
-		return
-	}
-	v, err := vault.New(VaultOptions(updated))
+	options := VaultOptions(updated)
+	options.Logger = g.log
+	v, err := vault.New(options)
 	if err != nil {
 		g.log.Error("cannot open vault from new config; keeping the old one", "error", err)
 		return
 	}
 	g.vaults.Store(v)
+	if !indexAffected(old, updated) {
+		g.index.SetVault(v)
+		return
+	}
 	if err := g.reindex(ctx, v); err != nil {
 		g.log.Error("cannot restart indexing", "error", err)
 	}
 }
 
-func vaultChanged(old, updated *config.Config) bool {
-	return old.Vault.Path != updated.Vault.Path || !slices.Equal(old.Vault.Ignore, updated.Vault.Ignore)
+// indexAffected says whether a config change alters what the index holds. The
+// writable folders and git setting do not.
+func indexAffected(old, updated *config.Config) bool {
+	return old.Vault.Path != updated.Vault.Path ||
+		old.Vault.MemoryFile != updated.Vault.MemoryFile ||
+		!slices.Equal(old.Vault.Ignore, updated.Vault.Ignore)
 }
 
 // reindex points the index and its watcher at a new vault. It clears the index

@@ -14,7 +14,9 @@ import (
 
 var (
 	upstreamNameRE = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
-	sha256HexRE    = regexp.MustCompile(`^[0-9a-f]{64}$`)
+	// App names end up in note comments, memory lines and commit messages.
+	appNameRE   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9 _.-]*$`)
+	sha256HexRE = regexp.MustCompile(`^[0-9a-f]{64}$`)
 	// Names under which vaultd exposes its own tools.
 	reservedNamespaces = []string{"vault", "memory"}
 )
@@ -94,6 +96,9 @@ func (c *Config) validateVault() error {
 		if !strings.HasSuffix(v.MemoryFile, ".md") {
 			return fmt.Errorf("vault.memory_file %q: must end in .md", v.MemoryFile)
 		}
+		if v.isIgnored(v.MemoryFile) {
+			return fmt.Errorf("vault.memory_file %q: file is in vault.ignore", v.MemoryFile)
+		}
 	}
 	return nil
 }
@@ -141,8 +146,8 @@ func (c *Config) validateAdminAudit() error {
 func (c *Config) validateApps() error {
 	seen := map[string]bool{}
 	for _, app := range c.Apps {
-		if app.Name == "" {
-			return errors.New("apps: name is required")
+		if !appNameRE.MatchString(app.Name) {
+			return fmt.Errorf("apps: name %q may only use letters, digits, spaces, _, . and -", app.Name)
 		}
 		if seen[app.Name] {
 			return fmt.Errorf("apps: duplicate name %q", app.Name)
